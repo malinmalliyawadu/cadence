@@ -42,8 +42,11 @@ public struct ExerciseHistoryEntry: Codable, Sendable, Hashable {
 
     /// The e1RM this session supports. Uses the median of working sets rather than the
     /// single best so one over-ambitious RIR estimate cannot drive next week's load.
-    public var sessionOneRepMax: Double? {
-        let values = workingSets.map(\.estimatedOneRepMax).sorted()
+    public var sessionOneRepMax: Double? { sessionOneRepMax(bodyweightKg: 0) }
+
+    /// As above, with bodyweight added to every set's load for bodyweight movements.
+    public func sessionOneRepMax(bodyweightKg: Double) -> Double? {
+        let values = workingSets.map { Progression.estimatedOneRepMax(weightKg: $0.weightKg + bodyweightKg, reps: $0.reps, rir: $0.rir) }.sorted()
         guard !values.isEmpty else { return nil }
         let mid = values.count / 2
         return values.count.isMultiple(of: 2) ? (values[mid - 1] + values[mid]) / 2 : values[mid]

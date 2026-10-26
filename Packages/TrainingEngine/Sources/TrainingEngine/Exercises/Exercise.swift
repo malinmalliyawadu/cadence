@@ -1,12 +1,12 @@
 import Foundation
 
 public enum MuscleGroup: String, Codable, Sendable, CaseIterable, Hashable {
-    case chest, back, shoulders, biceps, triceps
+    case chest, back, shoulders, biceps, triceps, forearms
     case quads, hamstrings, glutes, calves, core
 
     public var half: BodyHalf {
         switch self {
-        case .chest, .back, .shoulders, .biceps, .triceps: .upper
+        case .chest, .back, .shoulders, .biceps, .triceps, .forearms: .upper
         case .quads, .hamstrings, .glutes, .calves, .core: .lower
         }
     }
@@ -17,12 +17,12 @@ public enum MuscleGroup: String, Codable, Sendable, CaseIterable, Hashable {
 public enum MovementPattern: String, Codable, Sendable, CaseIterable, Hashable {
     case horizontalPush, horizontalPull, verticalPush, verticalPull
     case squat, hinge, lunge, hipExtension
-    case elbowFlexion, elbowExtension, lateralRaise
+    case elbowFlexion, elbowExtension, lateralRaise, wristFlexion
     case calfRaise, coreBrace
 }
 
 public enum Equipment: String, Codable, Sendable, CaseIterable, Hashable {
-    case barbell, dumbbell, cable, machine, bodyweight, kettlebell
+    case barbell, dumbbell, cable, machine, bodyweight, kettlebell, smith
 
     /// Smallest sensible jump in load for this equipment, in kilograms.
     public var incrementKg: Double {
@@ -30,6 +30,7 @@ public enum Equipment: String, Codable, Sendable, CaseIterable, Hashable {
         case .barbell: 2.5
         case .dumbbell: 2.0      // per hand, so 1 kg plates each side
         case .cable, .machine: 2.5
+        case .smith: 2.5
         case .kettlebell: 4.0
         case .bodyweight: 2.5    // added weight via belt or vest
         }

@@ -262,8 +262,8 @@ public enum WeekPlanner {
     private static func minuteBounds(for kind: RunKind) -> ClosedRange<Double> {
         switch kind {
         case .easy: 25...60
-        case .long: 45...120
-        case .quality: 30...55
+        case .long: 45...240
+        case .quality: 30...75
         }
     }
 
@@ -295,7 +295,7 @@ public enum WeekPlanner {
 
     /// Enumerates day assignments with pruning. Strength sessions keep their generated
     /// order (U/L/U/L) and strictly increase by day, identical sessions are assigned in
-    /// increasing day order, and two hard sessions never share a day. Those three rules
+    /// increasing day order, two hard sessions never share a day and neither do two runs. Those rules
     /// turn 7^n permutations into a few thousand candidates.
     private static func assign(
         sessions: [PlannedSession],
@@ -307,6 +307,7 @@ public enum WeekPlanner {
         var current = [Int](repeating: 0, count: sessions.count)
         var hardOnDay = [Bool](repeating: false, count: 7)
         var countOnDay = [Int](repeating: 0, count: 7)
+        var runOnDay = [Bool](repeating: false, count: 7)
         var longRunDay = -1
 
         func recurse(_ index: Int) {
@@ -326,16 +327,19 @@ public enum WeekPlanner {
                 if countOnDay[day] > 0, !prefs.allowTwoADays { continue }
                 if m.isStrength, longRunDay == day { continue }
                 if m.runKind == .long, hardOnDay[day] { continue }
+                if m.runKind != nil, runOnDay[day] { continue } // one run a day, whatever the kinds
 
                 current[index] = day
                 countOnDay[day] += 1
                 let wasHard = hardOnDay[day]
                 if m.isHard { hardOnDay[day] = true }
+                if m.runKind != nil { runOnDay[day] = true }
                 if m.runKind == .long { longRunDay = day }
 
                 recurse(index + 1)
 
                 if m.runKind == .long { longRunDay = -1 }
+                if m.runKind != nil { runOnDay[day] = false }
                 hardOnDay[day] = wasHard
                 countOnDay[day] -= 1
             }

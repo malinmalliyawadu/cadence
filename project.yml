@@ -1,0 +1,58 @@
+name: Cadence
+options:
+  bundleIdPrefix: nz.malin
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "27.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    CODE_SIGN_STYLE: Automatic
+packages:
+  TrainingEngine:
+    path: Packages/TrainingEngine
+targets:
+  Cadence:
+    type: application
+    platform: iOS
+    sources:
+      - path: Cadence
+        excludes:
+          - "Cadence.entitlements"
+    dependencies:
+      - package: TrainingEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Cadence uses your location to fetch the week's forecast so runs land on the best days."
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs and yoga classes from Apple Health, including duration, distance and effort, so they count toward your training load."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Development builds can write sample workouts to Health to test syncing."
+        CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_CFBundleDisplayName: Cadence
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: YES
+schemes:
+  Cadence:
+    build:
+      targets:
+        Cadence: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: TrainingEngine/TrainingEngineTests

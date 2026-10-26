@@ -2,6 +2,13 @@ import Foundation
 
 /// Inputs for one generated strength session.
 public struct StrengthSessionRequest: Sendable {
+    /// Sessions logged per exercise ID, derived from `history`. Familiar movements are preferred.
+    public var familiarity: [String: Int] {
+        var counts: [String: Int] = [:]
+        for entry in history where !entry.workingSets.isEmpty { counts[entry.exerciseID, default: 0] += 1 }
+        return counts
+    }
+
     public var half: BodyHalf
     public var focus: FocusArea
     public var availableEquipment: Set<Equipment>
@@ -15,6 +22,8 @@ public struct StrengthSessionRequest: Sendable {
     public var setReduction: Int
     /// Any stable integer. Changing it rotates accessory choices.
     public var variationSeed: Int
+    /// Athlete bodyweight, used to progress dips, pull-ups and chin-ups.
+    public var bodyweightKg: Double
 
     public init(
         half: BodyHalf,
@@ -24,7 +33,8 @@ public struct StrengthSessionRequest: Sendable {
         history: [ExerciseHistoryEntry] = [],
         readiness: Double = 1.0,
         setReduction: Int = 0,
-        variationSeed: Int = 0
+        variationSeed: Int = 0,
+        bodyweightKg: Double = 0
     ) {
         precondition(focus.half == half, "Focus \(focus) does not belong to the \(half) half")
         self.half = half
@@ -35,6 +45,7 @@ public struct StrengthSessionRequest: Sendable {
         self.readiness = readiness
         self.setReduction = setReduction
         self.variationSeed = variationSeed
+        self.bodyweightKg = bodyweightKg
     }
 }
 
@@ -119,7 +130,8 @@ public enum WorkoutGenerator {
                 history: request.history,
                 repRange: slot.scheme.reps,
                 targetRIR: slot.scheme.rir,
-                readiness: request.readiness
+                readiness: request.readiness,
+                bodyweightKg: request.bodyweightKg
             )
             prescriptions.append(ExercisePrescription(
                 exercise: exercise,
@@ -172,11 +184,19 @@ public enum WorkoutGenerator {
         }
         guard !candidates.isEmpty else { return nil }
 
-        // Opener: honour the focus's preferred openers first.
+        // Opener: the focus's preferred openers, favouring one the athlete has actually logged.
+        // Someone with 100 sets of Hammer Strength incline press and 3 of barbell bench should
+        // open on the machine they know, not the textbook lift.
         if index == 0 {
-            for id in request.focus.preferredOpeners {
-                if let preferred = candidates.first(where: { $0.id == id }) { return preferred }
+            let familiarity = request.familiarity
+            let preferred = request.focus.preferredOpeners.compactMap { id in candidates.first { $0.id == id } }
+            if let known = preferred.filter({ familiarity[$0.id, default: 0] > 0 }).max(by: { familiarity[$0.id, default: 0] < familiarity[$1.id, default: 0] }) {
+                return known
             }
+            if let familiar = candidates.filter({ familiarity[$0.id, default: 0] >= 3 }).max(by: { familiarity[$0.id, default: 0] < familiarity[$1.id, default: 0] }) {
+                return familiar
+            }
+            if let first = preferred.first { return first }
         }
 
         // Score: avoid repeating last session, avoid repeating a pattern already in this session,
@@ -184,6 +204,7 @@ public enum WorkoutGenerator {
         let ranked = candidates.enumerated().map { offset, exercise -> (Exercise, Double) in
             var score = 0.0
             if request.recentExerciseIDs.contains(exercise.id) { score -= 10 }
+            if let sessions = request.familiarity[exercise.id], sessions > 0 { score += min(6, 2 + Double(sessions) * 0.5) }
             if usedPatterns.contains(exercise.pattern) { score -= 4 }
             if let roleIndex = slot.roles.firstIndex(of: exercise.role) { score -= Double(roleIndex) * 2 }
             if slot.target == .focus, exercise.unilateral { score += 1 } // unilateral focus work is a feature, not a fallback
@@ -203,7 +224,7 @@ public enum WorkoutGenerator {
         case .hinge, .hipExtension: [.squat, .lunge]
         case .elbowFlexion: [.elbowExtension, .horizontalPush]
         case .elbowExtension: [.elbowFlexion, .horizontalPull]
-        case .lateralRaise, .calfRaise, .coreBrace: []
+        case .lateralRaise, .wristFlexion, .calfRaise, .coreBrace: []
         }
     }
 

@@ -77,20 +77,25 @@ public enum Progression {
     ///   - repRange: the rep range the next session will prescribe.
     ///   - targetRIR: the RIR the next session will prescribe.
     ///   - readiness: multiplier from load management, 1.0 when fresh. Values below 1 cut load.
+    ///   - bodyweightKg: the athlete's bodyweight. For bodyweight movements (dips, pull-ups) the
+    ///     logged weight is the *added* load, so the e1RM is computed on bodyweight plus added load
+    ///     and the prescription is converted back to added load. Ignored for everything else.
     public static func nextLoad(
         for exercise: Exercise,
         history: [ExerciseHistoryEntry],
         repRange: ClosedRange<Int>,
         targetRIR: Int,
-        readiness: Double = 1.0
+        readiness: Double = 1.0,
+        bodyweightKg: Double = 0
     ) -> ProgressionResult {
         let increment = exercise.equipment.incrementKg
+        let base = exercise.equipment == .bodyweight ? max(0, bodyweightKg) : 0
         let recent = history
             .filter { $0.exerciseID == exercise.id && !$0.workingSets.isEmpty }
             .sorted { $0.date > $1.date }
             .prefix(3)
 
-        guard let last = recent.first, let lastE1RM = last.sessionOneRepMax else {
+        guard let last = recent.first, let lastE1RM = last.sessionOneRepMax(bodyweightKg: base) else {
             let start = exercise.startingWeightKg > 0 ? roundToIncrement(exercise.startingWeightKg * readiness, increment: increment) : nil
             return ProgressionResult(weightKg: start, decision: .start, rationale: start == nil
                 ? "First time on this movement. Work up to a weight where \(repRange.lowerBound) reps leaves \(targetRIR) in reserve."
@@ -99,16 +104,17 @@ public enum Progression {
 
         // Stall detection: three sessions with no e1RM growth means fatigue is masking fitness.
         if recent.count == 3 {
-            let e1rms = recent.compactMap(\.sessionOneRepMax)
+            let e1rms = recent.compactMap { $0.sessionOneRepMax(bodyweightKg: base) }
             if e1rms.count == 3, e1rms[0] <= e1rms[1] * 1.005, e1rms[1] <= e1rms[2] * 1.005 {
-                let deload = roundToIncrement(lastE1RM * 0.9 / (1 + Double(repRange.lowerBound + targetRIR) / 30), increment: increment)
-                return ProgressionResult(weightKg: deload, decision: .deload, rationale: "No progress across three sessions. Dropping 10% for a week so you come back stronger.")
+                let deload = roundToIncrement(lastE1RM * 0.9 / (1 + Double(repRange.lowerBound + targetRIR) / 30) - base, increment: increment)
+                return ProgressionResult(weightKg: max(0, deload), decision: .deload, rationale: "No progress across three sessions. Dropping 10% for a week so you come back stronger.")
             }
         }
 
         // The load that puts the bottom of the rep range at the target RIR. Using the
         // bottom of the range means the athlete can grow into the top before the weight moves.
-        let ideal = load(forOneRepMax: lastE1RM, reps: repRange.lowerBound, rir: targetRIR) * readiness
+        // For bodyweight movements this is the added load, which can legitimately be zero.
+        let ideal = load(forOneRepMax: lastE1RM, reps: repRange.lowerBound, rir: targetRIR) * readiness - base
         let lastWeight = last.workingSets.map(\.weightKg).max() ?? ideal
         let lastMeanRIR = last.meanRIR ?? Double(targetRIR)
         let hitTopOfRange = last.workingSets.allSatisfy { $0.reps >= last.targetReps.upperBound }
@@ -117,7 +123,7 @@ public enum Progression {
         // when RIR is high and we would rather be right over four weeks than bold once.
         let maxUp = lastWeight + increment * 2
         let maxDown = lastWeight - increment * 2
-        var next = roundToIncrement(min(max(ideal, maxDown), maxUp), increment: increment)
+        var next = roundToIncrement(min(max(ideal, max(maxDown, 0)), maxUp), increment: increment)
 
         let decision: ProgressionDecision
         let rationale: String

@@ -112,6 +112,24 @@ struct ProgressionTests {
         #expect(result.weightKg! < 80)
     }
 
+    @Test("Bodyweight movements progress on bodyweight plus added load")
+    func bodyweightProgression() {
+        let pullUp = ExerciseLibrary.exercise(id: "pull-up")!
+        // 5 strict pull-ups at +0 with 4 in reserve for an 80 kg athlete: strong, should add load.
+        let history = [ExerciseHistoryEntry(exerciseID: pullUp.id, date: .now.addingTimeInterval(-7 * day), targetReps: 5...8, targetRIR: 2,
+                                            sets: Array(repeating: PerformedSet(weightKg: 0, reps: 8, rir: 4), count: 4))]
+        let result = Progression.nextLoad(for: pullUp, history: history, repRange: 5...8, targetRIR: 2, bodyweightKg: 80)
+        #expect(result.decision == .increase)
+        #expect(result.weightKg! > 0 && result.weightKg! <= 5)
+
+        // Grinding at +0 can only go to zero, never negative.
+        let weak = [ExerciseHistoryEntry(exerciseID: pullUp.id, date: .now.addingTimeInterval(-7 * day), targetReps: 5...8, targetRIR: 2,
+                                         sets: Array(repeating: PerformedSet(weightKg: 0, reps: 5, rir: 0), count: 4))]
+        let floor = Progression.nextLoad(for: pullUp, history: weak, repRange: 5...8, targetRIR: 2, bodyweightKg: 80)
+        #expect(floor.weightKg == 0)
+        #expect(floor.decision == .reduce)
+    }
+
     @Test("Only this exercise's history is consulted")
     func ignoresOtherExercises() {
         let squatHistory = ExerciseHistoryEntry(exerciseID: "bb-back-squat", date: .now, targetReps: 5...8, targetRIR: 2, sets: [PerformedSet(weightKg: 120, reps: 6, rir: 2)])

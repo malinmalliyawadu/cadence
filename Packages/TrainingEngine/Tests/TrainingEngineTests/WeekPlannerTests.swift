@@ -119,6 +119,14 @@ struct WeekPlannerTests {
         }
     }
 
+    @Test("Two runs never share a day even with two-a-days on")
+    func oneRunPerDay() {
+        let plan = plan(prefs: PlannerPreferences(weekStart: monday, easyRuns: 2, includeQualityRun: true, allowTwoADays: true))
+        for day in plan.days {
+            #expect(day.sessions.filter { $0.modality == .running }.count <= 1, "day \(day.dayIndex) had two runs")
+        }
+    }
+
     @Test("Without two-a-days nothing shares a day")
     func noDoubles() {
         let plan = plan(prefs: PlannerPreferences(weekStart: monday, easyRuns: 1, yogaSessions: 1, allowTwoADays: false))

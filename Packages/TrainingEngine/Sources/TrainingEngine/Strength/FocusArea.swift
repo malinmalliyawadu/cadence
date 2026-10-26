@@ -46,13 +46,13 @@ public enum FocusArea: String, Codable, Sendable, CaseIterable, Hashable, Identi
     /// Exercise IDs that make the best session opener for this focus, in preference order.
     public var preferredOpeners: [String] {
         switch self {
-        case .chest: ["bb-bench", "db-incline-press"]
-        case .back: ["pull-up", "bb-row"]
-        case .shoulders: ["bb-ohp", "db-shoulder-press"]
+        case .chest: ["bb-bench", "hs-incline-press", "db-incline-press", "smith-bench", "hs-chest-press", "machine-chest-press"]
+        case .back: ["pull-up", "bb-row", "hs-iso-row", "neutral-pull-up", "t-bar-row"]
+        case .shoulders: ["bb-ohp", "hs-shoulder-press", "db-shoulder-press", "machine-shoulder-press"]
         case .arms: ["cg-bench", "chin-up"]
-        case .quads: ["bb-back-squat", "bb-front-squat", "hack-squat"]
-        case .posteriorChain: ["bb-deadlift", "rdl"]
-        case .glutes: ["hip-thrust", "rdl"]
+        case .quads: ["bb-back-squat", "bb-front-squat", "hack-squat", "leg-press"]
+        case .posteriorChain: ["bb-deadlift", "rdl", "smith-rdl", "db-rdl"]
+        case .glutes: ["hip-thrust", "smith-glute-bridge", "rdl"]
         }
     }
 

@@ -1,0 +1,204 @@
+import Foundation
+import SwiftData
+import TrainingEngine
+
+enum SessionStatus: String, Codable, Sendable {
+    case planned, completed, skipped
+}
+
+/// One planned or completed session of any modality.
+@Model
+final class TrainingSession {
+    @Attribute(.unique) var id: UUID
+    var date: Date
+    var modalityRaw: String
+    var statusRaw: String
+    var plannedMinutes: Double
+    var actualMinutes: Double?
+    /// Session RPE 0 ... 10, set by the athlete for runs and yoga, derived from RIR for strength.
+    var rpe: Double?
+    var notes: String
+    var completedAt: Date?
+    /// Start of the week this session was planned in. Lets a re-plan replace only this week's untouched sessions.
+    var weekStart: Date
+    /// Stable key for sessions created by an import, so importing the same file twice is a no-op.
+    var importKey: String?
+    /// The HealthKit workout this session was completed from, if any.
+    var healthWorkoutID: String?
+
+    // Strength
+    var halfRaw: String?
+    var focusRaw: String?
+    @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.session) var exercises: [PlannedExercise]
+
+    // Running
+    var runKindRaw: String?
+    var distanceKm: Double?
+
+    init(date: Date, modality: Modality, plannedMinutes: Double, weekStart: Date) {
+        id = UUID()
+        self.date = date
+        modalityRaw = modality.rawValue
+        statusRaw = SessionStatus.planned.rawValue
+        self.plannedMinutes = plannedMinutes
+        notes = ""
+        self.weekStart = weekStart
+        exercises = []
+    }
+
+    var modality: Modality { Modality(rawValue: modalityRaw) ?? .strength }
+
+    var status: SessionStatus {
+        get { SessionStatus(rawValue: statusRaw) ?? .planned }
+        set { statusRaw = newValue.rawValue }
+    }
+
+    var half: BodyHalf? {
+        get { halfRaw.flatMap(BodyHalf.init(rawValue:)) }
+        set { halfRaw = newValue?.rawValue }
+    }
+
+    var focus: FocusArea? {
+        get { focusRaw.flatMap(FocusArea.init(rawValue:)) }
+        set { focusRaw = newValue?.rawValue }
+    }
+
+    var runKind: RunKind? {
+        get { runKindRaw.flatMap(RunKind.init(rawValue:)) }
+        set { runKindRaw = newValue?.rawValue }
+    }
+
+    var orderedExercises: [PlannedExercise] { exercises.sorted { $0.order < $1.order } }
+
+    var title: String {
+        switch modality {
+        case .strength:
+            if let half { return "\(half.displayName) body" }
+            return "Strength"
+        case .running:
+            return runKind?.displayName ?? "Run"
+        case .yoga:
+            return "Hot yoga"
+        }
+    }
+
+    var subtitle: String {
+        switch modality {
+        case .strength:
+            if let focus { return "\(focus.displayName) focus" }
+            return "Full session"
+        case .running:
+            if let distanceKm, status == .completed { return String(format: "%.1f km", distanceKm) }
+            return "\(Int(plannedMinutes)) min"
+        case .yoga:
+            return "\(Int(plannedMinutes)) min"
+        }
+    }
+
+    /// Mean RIR across logged working sets, for strength sessions.
+    var loggedMeanRIR: Double? {
+        let sets = exercises.flatMap(\.sets).filter { $0.completedAt != nil && $0.reps > 0 }
+        guard !sets.isEmpty else { return nil }
+        return Double(sets.map(\.rir).reduce(0, +)) / Double(sets.count)
+    }
+
+    var loggedSetCount: Int { exercises.flatMap(\.sets).filter { $0.completedAt != nil }.count }
+    var plannedSetCount: Int { exercises.map(\.targetSets).reduce(0, +) }
+
+    /// Session-RPE load in arbitrary units. Planned sessions use their estimate; completed ones use what was logged.
+    var load: Double {
+        let minutes = actualMinutes ?? plannedMinutes
+        switch modality {
+        case .strength:
+            let rir = loggedMeanRIR ?? meanTargetRIR
+            return TrainingLoad.sessionLoad(rpe: rpe ?? TrainingLoad.strengthSessionRPE(meanRIR: rir), minutes: minutes)
+        case .running:
+            return TrainingLoad.sessionLoad(rpe: rpe ?? runKind?.defaultRPE ?? 5, minutes: minutes)
+        case .yoga:
+            return TrainingLoad.sessionLoad(rpe: rpe ?? 5, minutes: minutes)
+        }
+    }
+
+    var meanTargetRIR: Double {
+        guard !exercises.isEmpty else { return 2 }
+        return Double(exercises.map(\.targetRIR).reduce(0, +)) / Double(exercises.count)
+    }
+
+    var loadEntry: LoadEntry? {
+        guard status == .completed else { return nil }
+        return LoadEntry(date: completedAt ?? date, modality: modality, load: load)
+    }
+}
+
+@Model
+final class PlannedExercise {
+    var exerciseID: String
+    var order: Int
+    var targetSets: Int
+    var repLower: Int
+    var repUpper: Int
+    var targetRIR: Int
+    var prescribedWeightKg: Double?
+    var isFocus: Bool
+    var rationale: String
+    var session: TrainingSession?
+    @Relationship(deleteRule: .cascade, inverse: \SetRecord.exercise) var sets: [SetRecord]
+
+    init(prescription: ExercisePrescription, order: Int) {
+        exerciseID = prescription.exercise.id
+        self.order = order
+        targetSets = prescription.sets
+        repLower = prescription.repRange.lowerBound
+        repUpper = prescription.repRange.upperBound
+        targetRIR = prescription.targetRIR
+        prescribedWeightKg = prescription.weightKg
+        isFocus = prescription.isFocus
+        rationale = prescription.rationale
+        sets = []
+    }
+
+    /// For imported history, where there was no prescription.
+    init(exerciseID: String, order: Int, sets: Int, repRange: ClosedRange<Int>, targetRIR: Int) {
+        self.exerciseID = exerciseID
+        self.order = order
+        targetSets = sets
+        repLower = repRange.lowerBound
+        repUpper = repRange.upperBound
+        self.targetRIR = targetRIR
+        prescribedWeightKg = nil
+        isFocus = false
+        rationale = "Imported from your previous log. Reps in reserve were not recorded, so 2 is assumed."
+        self.sets = []
+    }
+
+    var exercise: Exercise? { ExerciseLibrary.exercise(id: exerciseID) }
+    var name: String { exercise?.name ?? exerciseID }
+    var repRange: ClosedRange<Int> { repLower...repUpper }
+    var orderedSets: [SetRecord] { sets.sorted { $0.index < $1.index } }
+    var completedSets: [SetRecord] { orderedSets.filter { $0.completedAt != nil } }
+    var isComplete: Bool { completedSets.count >= targetSets }
+
+    /// What the engine needs to progress this movement next time.
+    var historyEntry: ExerciseHistoryEntry? {
+        let performed = completedSets.filter { $0.reps > 0 }.map { PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir) }
+        guard !performed.isEmpty, let date = session?.completedAt ?? session?.date else { return nil }
+        return ExerciseHistoryEntry(exerciseID: exerciseID, date: date, targetReps: repRange, targetRIR: targetRIR, sets: performed)
+    }
+}
+
+@Model
+final class SetRecord {
+    var index: Int
+    var weightKg: Double
+    var reps: Int
+    var rir: Int
+    var completedAt: Date?
+    var exercise: PlannedExercise?
+
+    init(index: Int, weightKg: Double, reps: Int, rir: Int) {
+        self.index = index
+        self.weightKg = weightKg
+        self.reps = reps
+        self.rir = rir
+    }
+}
