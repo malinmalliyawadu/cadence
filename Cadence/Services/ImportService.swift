@@ -66,7 +66,8 @@ enum ImportService {
     /// Adds the export's sessions to the store. A day that already holds the work keeps it (a
     /// lift with logged sets, a completed run, say from Health), so importing on top of real use
     /// never duplicates. Anything else of that modality on the day, planned, skipped or marked
-    /// done without sets, gives way to what the export shows was done. `replacingExisting`
+    /// done without sets (a watch-recorded lift), gives way to what the export shows was done,
+    /// keeping its Health link so the next sync enriches the import rather than recreating it. `replacingExisting`
     /// wipes every session first, for reseeding a simulator after the parser changes.
     static func apply(_ parsed: WorkoutExportParser.Result, replacingExisting: Bool, in context: ModelContext, coordinator: PlanCoordinator) -> Summary {
         if replacingExisting { coordinator.deleteAllSessions(in: context) }
@@ -78,12 +79,14 @@ enum ImportService {
         dayFormatter.calendar = calendar
         dayFormatter.dateFormat = "yyyy-MM-dd"
 
-        /// True when the day already holds the work; otherwise clears the way for the import.
-        func alreadyLogged(_ modality: Modality, on date: Date) -> Bool {
+        /// Whether the day already holds the work. If not, clears the way for the import and hands
+        /// over the Health workout linked to what it cleared (a watch-recorded lift has no sets).
+        func clearDay(_ modality: Modality, on date: Date) -> (alreadyLogged: Bool, healthWorkoutID: String?) {
             let sameDay = existing.filter { !$0.isDeleted && $0.modality == modality && calendar.isDate($0.date, inSameDayAs: date) }
-            if sameDay.contains(where: { $0.status == .completed && (modality != .strength || $0.loggedSetCount > 0) }) { return true }
+            if sameDay.contains(where: { $0.status == .completed && (modality != .strength || $0.loggedSetCount > 0) }) { return (true, nil) }
+            let linked = sameDay.lazy.compactMap(\.healthWorkoutID).first
             sameDay.forEach(context.delete)
-            return false
+            return (false, linked)
         }
 
         var equipment = Set<Equipment>()
@@ -91,10 +94,13 @@ enum ImportService {
 
         for imported in parsed.strength {
             let key = "csv:strength:\(dayFormatter.string(from: imported.date))"
-            if existingKeys.contains(key) || alreadyLogged(.strength, on: imported.date) { summary.skippedExisting += 1; continue }
+            if existingKeys.contains(key) { summary.skippedExisting += 1; continue }
+            let day = clearDay(.strength, on: imported.date)
+            if day.alreadyLogged { summary.skippedExisting += 1; continue }
             let minutes = imported.estimatedMinutes.rounded()
             let session = TrainingSession(date: imported.date, modality: .strength, plannedMinutes: minutes, weekStart: coordinator.weekStart(containing: imported.date))
             session.importKey = key
+            session.healthWorkoutID = day.healthWorkoutID
             session.half = imported.half
             session.focus = imported.focus
             session.status = .completed
@@ -124,10 +130,13 @@ enum ImportService {
 
         for run in parsed.runs {
             let key = "csv:run:\(dayFormatter.string(from: run.date))"
-            if existingKeys.contains(key) || alreadyLogged(.running, on: run.date) { summary.skippedExisting += 1; continue }
+            if existingKeys.contains(key) { summary.skippedExisting += 1; continue }
+            let day = clearDay(.running, on: run.date)
+            if day.alreadyLogged { summary.skippedExisting += 1; continue }
             let minutes = (run.minutes).rounded()
             let session = TrainingSession(date: run.date, modality: .running, plannedMinutes: minutes, weekStart: coordinator.weekStart(containing: run.date))
             session.importKey = key
+            session.healthWorkoutID = day.healthWorkoutID
             session.runKind = run.kind
             session.status = .completed
             session.completedAt = run.date.addingTimeInterval(run.seconds)
