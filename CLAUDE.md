@@ -23,7 +23,11 @@ and the weather, generates every strength session, and progresses load from reps
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score;
     saves finished strength sessions back as Traditional Strength Training workouts.
-  - `Services/ImportService.swift` - DEBUG only. `-importCSV <path>` launch argument seeds a simulator with real history. There is no import UI by Malin's request; Apple Health is the source for runs, yoga and bodyweight.
+  - `Services/ImportService.swift` - CSV import, from Settings (Import), the empty week, and the DEBUG `-importCSV <path>`
+    launch argument. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
+    left alone, and planned, skipped or setless sessions on an imported day are replaced (a watch workout linked to a
+    replaced lift moves to the import). "Replace existing history" (`-importReplace` at launch) wipes every session
+    first. Imports are never written to Health. Apple Health is the source for runs, yoga and bodyweight.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
   - `Design/MovementArt.swift` - muscle map, movement photos and list thumbnails. The `Movement` and `BodyMap`
