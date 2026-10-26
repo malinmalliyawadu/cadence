@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import TrainingEngine
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
@@ -11,6 +12,10 @@ struct SettingsView: View {
     @State private var location = LocationService()
     @State private var confirmWipe = false
     @State private var syncing = false
+    @State private var showImporter = false
+    @State private var replaceOnImport = false
+    @State private var importing = false
+    @State private var importMessage: String?
 
     private let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -186,11 +191,43 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Toggle("Replace existing history", isOn: $replaceOnImport)
+                    Button {
+                        showImporter = true
+                    } label: {
+                        HStack {
+                            Label("Import a workout export", systemImage: "square.and.arrow.down")
+                            Spacer()
+                            if importing { ProgressView() }
+                        }
+                    }
+                    .disabled(importing)
+                } header: {
+                    Text("Import")
+                } footer: {
+                    // The result sits in the footer: inserting a row under the button leaves a seam.
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let importMessage {
+                            Text(importMessage).foregroundStyle(Palette.ink)
+                        }
+                        Text(replaceOnImport
+                             ? "Deletes every session, logged and planned, then imports the file. Reps in reserve are assumed to be 2 for imported sets."
+                             : "Adds lifts and runs from a CSV with Date, Exercise, Reps, Weight(kg), Duration(s), Distance(m) and isWarmup columns. Days already in Cadence are left alone, so importing again only adds what is new. Reps in reserve are assumed to be 2 for imported sets.")
+                    }
+                }
+
+                Section {
                     NavigationLink("Credits") { CreditsView() }
                 }
 
                 Section {
                     Button("Delete all sessions", role: .destructive) { confirmWipe = true }
+                        // On the button, so the dialog points at what opened it.
+                        .confirmationDialog("Delete every session?", isPresented: $confirmWipe, titleVisibility: .visible) {
+                            Button("Delete all sessions", role: .destructive) { coordinator.deleteAllSessions(in: context) }
+                        } message: {
+                            Text("This removes all history and plans. Settings stay.")
+                        }
                 } footer: {
                     Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                 }
@@ -208,10 +245,12 @@ struct SettingsView: View {
                 Task { await coordinator.refreshForecast(in: context) }
             }
         }
-        .confirmationDialog("Delete every session?", isPresented: $confirmWipe, titleVisibility: .visible) {
-            Button("Delete all sessions", role: .destructive) { coordinator.deleteAllSessions(in: context) }
-        } message: {
-            Text("This removes all history and plans. Settings stay.")
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
+            importing = true
+            Task {
+                importMessage = await ImportService.importPicked(result, replacingExisting: replaceOnImport, in: context, coordinator: coordinator)
+                importing = false
+            }
         }
     }
 }

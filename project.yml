@@ -26,7 +26,6 @@ targets:
       - path: Cadence
         excludes:
           - "Cadence.entitlements"
-          - "Debug-Info.plist"
     dependencies:
       - package: TrainingEngine
     settings:
@@ -48,11 +47,6 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_EMIT_LOC_STRINGS: YES
-      configs:
-        # Debug builds show Documents in Files, so an export can be dropped in for -importCSV.
-        # Merged with the generated Info.plist.
-        Debug:
-          INFOPLIST_FILE: Cadence/Debug-Info.plist
 schemes:
   Cadence:
     build:

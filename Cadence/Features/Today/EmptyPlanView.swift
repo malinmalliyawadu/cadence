@@ -1,11 +1,15 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// First launch, or a week nothing has been planned for.
 struct EmptyPlanView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Query private var sessions: [TrainingSession]
+    @State private var showImporter = false
+    @State private var importing = false
+    @State private var importMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -32,12 +36,31 @@ struct EmptyPlanView: View {
                 Label(coordinator.phase == .planning ? "Planning" : "Plan my week", systemImage: "sparkles")
             }
             .buttonStyle(.primary)
-            .disabled(coordinator.phase == .planning)
+            .disabled(coordinator.phase == .planning || importing)
+            if sessions.isEmpty {
+                Button {
+                    showImporter = true
+                } label: {
+                    Label(importing ? "Importing" : "Import a workout export", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.secondary)
+                .disabled(importing)
+            }
+            if let importMessage {
+                Text(importMessage).font(.footnote).foregroundStyle(Palette.inkSecondary)
+            }
             if let note = coordinator.forecastError {
                 Label(note, systemImage: "cloud.slash").font(.footnote).foregroundStyle(Palette.inkTertiary)
             }
             Spacer().frame(height: 24)
         }
         .padding(.horizontal, 24)
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
+            importing = true
+            Task {
+                importMessage = await ImportService.importPicked(result, replacingExisting: false, in: context, coordinator: coordinator)
+                importing = false
+            }
+        }
     }
 }

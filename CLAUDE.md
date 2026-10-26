@@ -20,11 +20,10 @@ and the weather, generates every strength session, and progresses load from reps
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs and yoga from Apple Health, effort from Workout Effort Score.
-  - `Services/ImportService.swift` - DEBUG only. `-importCSV <path>` launch argument adds real history; a bare file name
-    is read from the app's Documents folder, which Debug builds show in Files (`Cadence/Debug-Info.plist`), so a phone
-    can be seeded too. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
-    left alone, and planned, skipped or setless sessions on an imported day are replaced. `-importReplace` wipes every
-    session first. There is no import UI by Malin's request; Apple Health is the source for runs, yoga and bodyweight.
+  - `Services/ImportService.swift` - CSV import, from Settings (Import), the empty week, and the DEBUG `-importCSV <path>`
+    launch argument. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
+    left alone, and planned, skipped or setless sessions on an imported day are replaced. "Replace existing history"
+    (`-importReplace` at launch) wipes every session first. Apple Health is the source for runs, yoga and bodyweight.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
   - `Design/MovementArt.swift` - muscle map, movement drawings and list thumbnails. The `Movement` and `BodyMap`
@@ -52,8 +51,6 @@ TestFlight: archive with `-allowProvisioningUpdates CURRENT_PROJECT_VERSION=$(da
 (method app-store-connect, destination upload). Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
 App Store Connect rejects uploads without `NSHealthUpdateUsageDescription` even though Health access is read only; keep it.
 Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence.fitness -importCSV /path/export.csv`.
-Seed a phone: install a Debug build, put the export in Files, On My iPhone, Cadence, then
-`xcrun devicectl device process launch --device <udid> nz.malin.cadence.fitness -importCSV WorkoutExport.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 
 ## The training model, and why

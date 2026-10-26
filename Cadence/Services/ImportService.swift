@@ -2,9 +2,8 @@ import Foundation
 import SwiftData
 import TrainingEngine
 
-#if DEBUG
-/// Turns a parsed workout export into completed sessions in the store. Development only:
-/// reached through the `-importCSV <path>` launch argument to seed a simulator with real history.
+/// Turns a parsed workout export into completed sessions in the store. Reached from Settings,
+/// the empty week, and the DEBUG `-importCSV <path>` launch argument.
 @MainActor
 enum ImportService {
     struct Summary: Sendable, Equatable {
@@ -15,7 +14,12 @@ enum ImportService {
         var skippedActivities: [String: Int] = [:]
 
         var message: String {
-            var lines = ["\(strengthSessions) strength sessions and \(runs) runs imported."]
+            var lines: [String] = []
+            if strengthSessions + runs > 0 {
+                lines.append("\(count(strengthSessions, "strength session")) and \(count(runs, "run")) imported.")
+            } else {
+                lines.append(skippedExisting > 0 ? "Nothing new to import." : "No lifts or runs in this file.")
+            }
             if skippedExisting > 0 { lines.append("\(skippedExisting) already in Cadence, left alone.") }
             if !unmapped.isEmpty {
                 let names = unmapped.sorted { $0.value > $1.value }.prefix(5).map { "\($0.key) (\($0.value))" }
@@ -26,18 +30,37 @@ enum ImportService {
             }
             return lines.joined(separator: " ")
         }
+
+        private func count(_ value: Int, _ noun: String) -> String {
+            "\(value) \(noun)\(value == 1 ? "" : "s")"
+        }
     }
 
     /// Reps in reserve is not in the export. Two is the working-set norm and keeps the first
     /// Cadence session from over- or under-shooting.
     static let assumedRIR = 2
 
-    static func importExport(at url: URL, replacingExisting: Bool, in context: ModelContext, coordinator: PlanCoordinator) throws -> Summary {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        let text = try String(contentsOf: url, encoding: .utf8)
-        let parsed = try WorkoutExportParser.parse(text, calendar: coordinator.calendar)
+    /// Reads and parses off the main thread, then applies the result to the store.
+    static func importExport(at url: URL, replacingExisting: Bool, in context: ModelContext, coordinator: PlanCoordinator) async throws -> Summary {
+        let calendar = coordinator.calendar
+        let parsed = try await Task.detached {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let text = try String(contentsOf: url, encoding: .utf8)
+            return try WorkoutExportParser.parse(text, calendar: calendar)
+        }.value
         return apply(parsed, replacingExisting: replacingExisting, in: context, coordinator: coordinator)
+    }
+
+    /// Imports a file picked with `fileImporter` and replans the week. Returns the line to show.
+    static func importPicked(_ result: Result<URL, any Error>, replacingExisting: Bool, in context: ModelContext, coordinator: PlanCoordinator) async -> String {
+        do {
+            let summary = try await importExport(at: result.get(), replacingExisting: replacingExisting, in: context, coordinator: coordinator)
+            await coordinator.planWeek(in: context)
+            return summary.message
+        } catch {
+            return "Could not import: \(error.localizedDescription)"
+        }
     }
 
     /// Adds the export's sessions to the store. A day that already holds the work keeps it (a
@@ -133,4 +156,13 @@ enum ImportService {
         return summary
     }
 }
-#endif
+
+extension WorkoutExportParser.ParseError: @retroactive LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .missingHeader: "The file is empty."
+        case .missingColumns(let columns):
+            "This is not a workout export. It has no \(columns.joined(separator: ", ")) \(columns.count == 1 ? "column" : "columns")."
+        }
+    }
+}
