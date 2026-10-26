@@ -38,7 +38,6 @@ targets:
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Cadence uses your location to fetch the week's forecast so runs land on the best days."
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs and yoga classes from Apple Health, including duration, distance and effort, so they count toward your training load."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Development builds can write sample workouts to Health to test syncing."
         CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_CFBundleDisplayName: Cadence

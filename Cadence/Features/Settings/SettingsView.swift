@@ -1,7 +1,6 @@
 import SwiftData
 import SwiftUI
 import TrainingEngine
-import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
@@ -11,9 +10,6 @@ struct SettingsView: View {
     @Query private var profiles: [AthleteProfile]
     @State private var location = LocationService()
     @State private var confirmWipe = false
-    @State private var showImporter = false
-    @State private var replaceOnImport = true
-    @State private var importMessage: String?
     @State private var syncing = false
 
     private let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -151,9 +147,6 @@ struct SettingsView: View {
                     if let lastSync = health.lastSync {
                         LabeledContent("Last sync", value: lastSync.formatted(date: .abbreviated, time: .shortened))
                     }
-                    #if DEBUG
-                    Button("Write sample workouts to Health") { Task { await health.writeSampleWorkouts() } }
-                    #endif
                 } else {
                     Button {
                         Task { await health.requestAccess() }
@@ -175,26 +168,6 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Replace existing history", isOn: $replaceOnImport)
-                Button {
-                    showImporter = true
-                } label: {
-                    Label("Import a workout export", systemImage: "square.and.arrow.down")
-                }
-                if let importMessage {
-                    Text(importMessage).font(.footnote).foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Import")
-            } footer: {
-                Text("A CSV with Date, Exercise, Reps, Weight(kg), Duration(s), Distance(m) and isWarmup columns. Reps in reserve are assumed to be 2 for imported sets.")
-            }
-
-            Section {
-                Button("Replace history with sample data") {
-                    SampleData.wipe(in: context)
-                    SampleData.seed(in: context, coordinator: coordinator)
-                }
                 Button("Delete all sessions", role: .destructive) { confirmWipe = true }
             } footer: {
                 Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
@@ -209,22 +182,8 @@ struct SettingsView: View {
                 Task { await coordinator.refreshForecast(in: context) }
             }
         }
-        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
-            switch result {
-            case .success(let url):
-                do {
-                    let summary = try ImportService.importExport(at: url, replacingExisting: replaceOnImport, in: context, coordinator: coordinator)
-                    importMessage = summary.message
-                    Task { await coordinator.planWeek(in: context) }
-                } catch {
-                    importMessage = "Could not import: \(error.localizedDescription)"
-                }
-            case .failure(let error):
-                importMessage = error.localizedDescription
-            }
-        }
         .confirmationDialog("Delete every session?", isPresented: $confirmWipe, titleVisibility: .visible) {
-            Button("Delete all sessions", role: .destructive) { SampleData.wipe(in: context) }
+            Button("Delete all sessions", role: .destructive) { coordinator.deleteAllSessions(in: context) }
         } message: {
             Text("This removes all history and plans. Settings stay.")
         }

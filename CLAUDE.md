@@ -17,7 +17,7 @@ and the weather, generates every strength session, and progresses load from reps
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation. iOS 26+, Liquid Glass.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs and yoga from Apple Health, effort from Workout Effort Score.
-  - `Services/ImportService.swift` - persists a parsed export. `-importCSV <path>` launch argument seeds the simulator.
+  - `Services/ImportService.swift` - DEBUG only. `-importCSV <path>` launch argument seeds a simulator with real history. There is no import UI by Malin's request; Apple Health is the source for runs, yoga and bodyweight.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, the mesh-gradient backdrop and glass helpers.
 - `project.yml` - XcodeGen spec. `Cadence.xcodeproj` is generated and git-ignored: run `xcodegen generate` after cloning or editing the spec.
@@ -32,6 +32,10 @@ cd Packages/TrainingEngine && swift test
 
 Sign ad hoc (`CODE_SIGN_IDENTITY="-"`), not `CODE_SIGNING_ALLOWED=NO`: the latter drops the
 HealthKit entitlement and Health access fails with "Missing com.apple.developer.healthkit entitlement".
+Health access is read only. The simulator has no Fitness app, so to exercise the sync there you
+have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
+longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
+EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
 Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence -importCSV /path/export.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 

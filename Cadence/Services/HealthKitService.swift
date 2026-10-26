@@ -49,13 +49,8 @@ final class HealthKitService {
         guard HKHealthStore.isHealthDataAvailable() else { state = .unavailable; return }
         state = .requesting
         let read: Set<HKObjectType> = [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType]
-        #if DEBUG
-        let share: Set<HKSampleType> = [workoutType, effortType, distanceType, bodyMassType]
-        #else
-        let share: Set<HKSampleType> = []
-        #endif
         do {
-            try await store.requestAuthorization(toShare: share, read: read)
+            try await store.requestAuthorization(toShare: [], read: read)
             // Read permission is never reported directly; a request that completes is as good as it gets.
             state = .ready
             isEnabled = true
@@ -201,47 +196,4 @@ final class HealthKitService {
         if let effort = workout.effort, session.rpe != effort { session.rpe = effort; changed = true }
         return changed
     }
-
-    // MARK: Development helpers
-
-    #if DEBUG
-    /// Writes a run and a yoga class into Health so the sync path can be exercised in the simulator.
-    func writeSampleWorkouts() async {
-        guard state == .ready else { return }
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        do {
-            // A 48 minute run this morning, 8.2 km, rated 5.
-            let runStart = calendar.date(byAdding: .hour, value: 6, to: today)!
-            let runEnd = runStart.addingTimeInterval(48 * 60)
-            try await writeWorkout(.running, start: runStart, end: runEnd, distanceKm: 8.2, effort: 5)
-            // A 60 minute hot yoga class yesterday evening, rated 4.
-            let yogaStart = calendar.date(byAdding: .hour, value: -6, to: today)!
-            let yogaEnd = yogaStart.addingTimeInterval(60 * 60)
-            try await writeWorkout(.yoga, start: yogaStart, end: yogaEnd, distanceKm: nil, effort: 4)
-            // A bodyweight reading from this morning.
-            let mass = HKQuantitySample(type: bodyMassType, quantity: HKQuantity(unit: .gramUnit(with: .kilo), doubleValue: 78.4), start: runStart, end: runStart)
-            try await store.save(mass)
-            lastMessage = "Wrote a sample run, yoga class and bodyweight to Health."
-        } catch {
-            lastMessage = "Could not write to Health: \(error.localizedDescription)"
-        }
-    }
-
-    private func writeWorkout(_ activity: HKWorkoutActivityType, start: Date, end: Date, distanceKm: Double?, effort: Double) async throws {
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = activity
-        let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
-        try await builder.beginCollection(at: start)
-        if let distanceKm {
-            let quantity = HKQuantity(unit: .meterUnit(with: .kilo), doubleValue: distanceKm)
-            let sample = HKQuantitySample(type: distanceType, quantity: quantity, start: start, end: end)
-            try await builder.addSamples([sample])
-        }
-        try await builder.endCollection(at: end)
-        guard let workout = try await builder.finishWorkout() else { return }
-        let score = HKQuantitySample(type: effortType, quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: effort), start: end, end: end)
-        try await store.relateWorkoutEffortSample(score, with: workout, activity: nil)
-    }
-    #endif
 }

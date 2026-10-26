@@ -2,7 +2,9 @@ import Foundation
 import SwiftData
 import TrainingEngine
 
-/// Turns a parsed workout export into completed sessions in the store.
+#if DEBUG
+/// Turns a parsed workout export into completed sessions in the store. Development only:
+/// reached through the `-importCSV <path>` launch argument to seed a simulator with real history.
 @MainActor
 enum ImportService {
     struct Summary: Sendable, Equatable {
@@ -39,7 +41,7 @@ enum ImportService {
     }
 
     static func apply(_ parsed: WorkoutExportParser.Result, replacingExisting: Bool, in context: ModelContext, coordinator: PlanCoordinator) -> Summary {
-        if replacingExisting { SampleData.wipe(in: context) }
+        if replacingExisting { coordinator.deleteAllSessions(in: context) }
         let calendar = coordinator.calendar
         let existingKeys = Set(((try? context.fetch(FetchDescriptor<TrainingSession>())) ?? []).compactMap(\.importKey))
         var summary = Summary(unmapped: parsed.unmapped, skippedActivities: parsed.skippedActivities)
@@ -107,3 +109,4 @@ enum ImportService {
         return summary
     }
 }
+#endif

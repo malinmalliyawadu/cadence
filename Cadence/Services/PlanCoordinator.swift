@@ -254,6 +254,12 @@ final class PlanCoordinator {
         try? context.save()
     }
 
+    func deleteAllSessions(in context: ModelContext) {
+        try? context.delete(model: TrainingSession.self)
+        try? context.save()
+        lastPlan = nil
+    }
+
     func reopen(_ session: TrainingSession, in context: ModelContext) {
         session.status = .planned
         session.completedAt = nil
