@@ -38,15 +38,22 @@ struct RootView: View {
         }
     }
 
-    /// Development convenience: `-importCSV /path/to/export.csv` seeds the store on launch.
+    /// Development convenience: `-importCSV <path>` adds an export's history on launch. A bare
+    /// file name is read from the app's Documents folder, which Debug builds show in Files, so
+    /// a phone can be seeded too. `-importReplace` wipes every session first.
     private func importFromLaunchArguments() async {
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         guard let index = arguments.firstIndex(of: "-importCSV"), index + 1 < arguments.count else { return }
-        let url = URL(fileURLWithPath: arguments[index + 1])
-        guard let summary = try? ImportService.importExport(at: url, replacingExisting: true, in: context, coordinator: coordinator) else { return }
-        print("Imported from launch argument: \(summary.message)")
-        await coordinator.planWeek(in: context)
+        let path = arguments[index + 1]
+        let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL.documentsDirectory.appending(path: path)
+        do {
+            let summary = try ImportService.importExport(at: url, replacingExisting: arguments.contains("-importReplace"), in: context, coordinator: coordinator)
+            print("Imported \(url.lastPathComponent): \(summary.message)")
+            await coordinator.planWeek(in: context)
+        } catch {
+            print("Import of \(url.path) failed: \(error)")
+        }
         #endif
     }
 }

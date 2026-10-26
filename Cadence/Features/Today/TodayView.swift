@@ -98,7 +98,7 @@ struct TodayView: View {
     private var summary: String {
         let titles = today.filter { $0.status != .skipped }.map(\.title)
         guard let first = titles.first else { return "Rest day" }
-        return ([first] + titles.dropFirst().map { $0.lowercased() }).joined(separator: " and ")
+        return ([first] + titles.dropFirst().map { $0.lowercased() }).formatted(.list(type: .and))
     }
 
     private var conditions: some View {
