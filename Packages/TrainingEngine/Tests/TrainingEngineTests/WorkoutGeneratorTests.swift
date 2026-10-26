@@ -86,4 +86,54 @@ struct WorkoutGeneratorTests {
         #expect(session.estimatedMinutes > 45 && session.estimatedMinutes < 90, "was \(session.estimatedMinutes)")
         #expect(session.estimatedLoad > 250 && session.estimatedLoad < 700, "was \(session.estimatedLoad)")
     }
+
+    @Test("Always-included movements come on top of the six slots")
+    func alwaysIncluded() {
+        let plain = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: .chest))
+        let session = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: .chest, alwaysIncluded: ["wrist-curl"]))
+        #expect(session.prescriptions.count == 7)
+        #expect(session.prescriptions.last?.exercise.id == "wrist-curl", "an isolation closes the session")
+        #expect(Array(session.prescriptions.dropLast()) == plain.prescriptions, "the six slots are untouched")
+        let added = session.prescriptions.last
+        #expect(added?.isFocus == false)
+        #expect(added?.repRange == WorkoutGenerator.isolationScheme.reps)
+    }
+
+    @Test("An always-included movement is never picked for a slot as well", arguments: FocusArea.areas(for: .upper))
+    func alwaysIncludedNotDoubled(focus: FocusArea) {
+        let plain = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: focus))
+        let opener = plain.prescriptions[0].exercise
+        let session = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: focus, alwaysIncluded: [opener.id, opener.id]))
+        #expect(session.prescriptions.count == 7)
+        #expect(session.prescriptions.filter { $0.exercise.id == opener.id }.count == 1)
+        #expect(Set(session.prescriptions.map(\.exercise.id)).count == 7)
+    }
+
+    @Test("Added compounds go before lighter work, and the other half's movements are ignored")
+    func alwaysIncludedOrder() throws {
+        let session = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: .back, alwaysIncluded: ["bb-bench", "leg-press"]))
+        #expect(session.prescriptions.count == 7)
+        #expect(!session.prescriptions.contains { $0.exercise.id == "leg-press" })
+        let roles = session.prescriptions.map(\.exercise.role)
+        let index = try #require(session.prescriptions.firstIndex { $0.exercise.id == "bb-bench" })
+        #expect(roles[..<index].allSatisfy { $0 == .compound })
+        #expect(roles[index + 1] != .compound)
+    }
+
+    @Test("Added movements progress from their own history")
+    func alwaysIncludedHistory() {
+        let history = [ExerciseHistoryEntry(exerciseID: "wrist-curl", date: .now.addingTimeInterval(-7 * 86_400), targetReps: 12...15, targetRIR: 1,
+                                            sets: Array(repeating: PerformedSet(weightKg: 30, reps: 12, rir: 1), count: 3))]
+        let session = WorkoutGenerator.generate(StrengthSessionRequest(half: .upper, focus: .arms, history: history, alwaysIncluded: ["wrist-curl"]))
+        let added = session.prescriptions.first { $0.exercise.id == "wrist-curl" }
+        #expect((added?.weightKg ?? 0) >= 30, "was \(String(describing: added?.weightKg))")
+    }
+
+    @Test("Slots outside the focus leave muscles an always-included movement already trains")
+    func alwaysIncludedCoverage() {
+        let session = WorkoutGenerator.generate(StrengthSessionRequest(half: .lower, focus: .quads, alwaysIncluded: ["standing-calf-raise"]))
+        let calves = session.prescriptions.filter { $0.exercise.primary == .calves }.map(\.exercise.id)
+        #expect(calves == ["standing-calf-raise"])
+        #expect(session.prescriptions.contains { $0.exercise.primary == .core }, "the finisher moves on to core")
+    }
 }

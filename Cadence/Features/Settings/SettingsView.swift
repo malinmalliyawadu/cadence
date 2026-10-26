@@ -79,6 +79,18 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    ForEach(BodyHalf.allCases, id: \.self) { half in
+                        NavigationLink { AlwaysIncludedView(half: half) } label: {
+                            LabeledContent(half.displayName, value: alwaysIncludedSummary(profile.alwaysIncluded(for: half)))
+                        }
+                    }
+                } header: {
+                    Text("In every session")
+                } footer: {
+                    Text("Added on top of the six movements the planner picks. Upcoming sessions with nothing logged change too.")
+                }
+
                 Section("Equipment") {
                     ForEach(Equipment.allCases, id: \.self) { item in
                         Toggle(item.rawValue.capitalized, isOn: Binding(
@@ -212,6 +224,15 @@ struct SettingsView: View {
             Button("Delete all sessions", role: .destructive) { coordinator.deleteAllSessions(in: context) }
         } message: {
             Text("This removes all history and plans. Settings stay.")
+        }
+    }
+
+    private func alwaysIncludedSummary(_ ids: [String]) -> String {
+        let names = ids.compactMap { ExerciseLibrary.exercise(id: $0)?.name }
+        switch names.count {
+        case 0: return "None"
+        case 1: return names[0]
+        default: return "\(names.count) movements"
         }
     }
 }

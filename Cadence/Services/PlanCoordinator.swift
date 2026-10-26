@@ -170,7 +170,8 @@ final class PlanCoordinator {
                 readiness: readiness.loadMultiplier,
                 setReduction: readiness.setReduction,
                 variationSeed: Int(start.timeIntervalSince1970 / 86_400) + index,
-                bodyweightKg: profile.bodyweightKg
+                bodyweightKg: profile.bodyweightKg,
+                alwaysIncluded: profile.alwaysIncluded(for: half)
             ))
             generated.append(session)
             let ids = Set(session.prescriptions.map(\.exercise.id))
@@ -284,13 +285,61 @@ final class PlanCoordinator {
             readiness: readiness.loadMultiplier,
             setReduction: readiness.setReduction,
             variationSeed: Int(session.date.timeIntervalSince1970 / 86_400),
-            bodyweightKg: profile.bodyweightKg
+            bodyweightKg: profile.bodyweightKg,
+            alwaysIncluded: profile.alwaysIncluded(for: half)
         ))
         for exercise in session.exercises { context.delete(exercise) }
         session.exercises = generated.prescriptions.enumerated().map { PlannedExercise(prescription: $1, order: $0) }
         session.half = half
         session.focus = focus
         session.plannedMinutes = generated.estimatedMinutes.rounded()
+        try? context.save()
+    }
+
+    /// Sets the movements added to every session of a half, and brings upcoming sessions that
+    /// have nothing logged into line: new ones are added where missing, dropped ones are removed.
+    func setAlwaysIncluded(_ ids: [String], for half: BodyHalf, in context: ModelContext) {
+        let profile = profile(in: context)
+        let previous = profile.alwaysIncluded(for: half)
+        if half == .upper { profile.alwaysIncludedUpper = ids } else { profile.alwaysIncludedLower = ids }
+        let added = ids.filter { !previous.contains($0) }.compactMap(ExerciseLibrary.exercise(id:))
+        let removed = Set(previous).subtracting(ids)
+
+        let today = calendar.startOfDay(for: .now)
+        let strength = Modality.strength.rawValue
+        let planned = SessionStatus.planned.rawValue
+        let halfRaw = half.rawValue
+        let descriptor = FetchDescriptor<TrainingSession>(predicate: #Predicate {
+            $0.modalityRaw == strength && $0.statusRaw == planned && $0.halfRaw == halfRaw && $0.date >= today
+        })
+        let upcoming = ((try? context.fetch(descriptor)) ?? []).filter { $0.loggedSetCount == 0 }
+        let history = history(in: context)
+        let entries = loadEntries(in: context)
+        for session in upcoming {
+            guard let focus = session.focus else { continue }
+            let dropped = session.exercises.filter { removed.contains($0.exerciseID) }
+            session.exercises.removeAll { removed.contains($0.exerciseID) }
+            for exercise in dropped { context.delete(exercise) }
+
+            let readiness = Readiness.from(LoadAnalysis.snapshot(entries: entries, planningOn: session.date, calendar: calendar))
+            let request = StrengthSessionRequest(
+                half: half,
+                focus: focus,
+                history: history,
+                readiness: readiness.loadMultiplier,
+                setReduction: readiness.setReduction,
+                bodyweightKg: profile.bodyweightKg
+            )
+            var ordered = session.orderedExercises
+            for exercise in added where !ordered.contains(where: { $0.exerciseID == exercise.id }) {
+                let index = WorkoutGenerator.insertionIndex(for: exercise.role, in: ordered.map { $0.exercise?.role ?? .isolation })
+                let new = PlannedExercise(prescription: WorkoutGenerator.prescription(adding: exercise, for: request), order: index)
+                session.exercises.append(new)
+                ordered.insert(new, at: index)
+            }
+            for (order, exercise) in ordered.enumerated() { exercise.order = order }
+            refreshMinutes(session)
+        }
         try? context.save()
     }
 

@@ -7,9 +7,10 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  66 tests in under a second. Everything that decides what to train lives here, never in views.
+  71 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
-  - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots.
+  - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
+    movements the athlete always wants in an upper or lower session (Settings, In every session).
   - `Strength/SwapRanking.swift` - orders replacements for a movement: same muscle and pattern, then the focus, then familiarity.
   - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
   - `Load/TrainingLoad.swift` - session-RPE load, EWMA acute:chronic ratio, monotony, strain, readiness.
