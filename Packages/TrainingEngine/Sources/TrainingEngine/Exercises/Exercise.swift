@@ -16,7 +16,7 @@ public enum MuscleGroup: String, Codable, Sendable, CaseIterable, Hashable {
 
 public enum MovementPattern: String, Codable, Sendable, CaseIterable, Hashable {
     case horizontalPush, horizontalPull, verticalPush, verticalPull
-    case squat, hinge, lunge, hipExtension
+    case squat, hinge, lunge, hipExtension, kneeFlexion, kneeExtension
     case elbowFlexion, elbowExtension, lateralRaise, wristFlexion
     case calfRaise, coreBrace
 }

@@ -10,6 +10,12 @@ final class AthleteProfile {
     /// When Apple Health last supplied the bodyweight. Nil means it was entered by hand.
     var bodyweightFromHealthAt: Date?
 
+    // Heart rate, for run zones. Nil until Health supplies it or the athlete sets it.
+    var maxHeartRate: Int?
+    var restingHeartRate: Int?
+    /// When Apple Health last supplied the heart-rate figures. Nil means they were set by hand.
+    var heartRateFromHealthAt: Date?
+
     // Weekly structure
     var strengthSessionsPerWeek: Int
     var easyRuns: Int
@@ -69,6 +75,10 @@ final class AthleteProfile {
     var equipment: Set<Equipment> {
         get { Set(equipmentRaw.compactMap(Equipment.init(rawValue:))) }
         set { equipmentRaw = newValue.map(\.rawValue).sorted() }
+    }
+
+    var heartRateZones: HeartRateZones? {
+        maxHeartRate.map { HeartRateZones(maximum: $0, resting: restingHeartRate) }
     }
 
     func plannerPreferences(weekStart: Date) -> PlannerPreferences {

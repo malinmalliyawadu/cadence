@@ -27,152 +27,174 @@ struct SettingsView: View {
                 ProgressView().task { _ = coordinator.profile(in: context) }
             }
         }
-        .presentationBackground(.thinMaterial)
+        .presentationBackground(Palette.canvas)
     }
 
     @ViewBuilder
     private func form(for profile: AthleteProfile) -> some View {
         @Bindable var profile = profile
         Form {
-            Section("Week") {
-                Stepper("Strength sessions: \(profile.strengthSessionsPerWeek)", value: $profile.strengthSessionsPerWeek, in: 0...6)
-                Toggle("Long run", isOn: $profile.includeLongRun)
-                Toggle("Quality run (tempo or intervals)", isOn: $profile.includeQualityRun)
-                Stepper("Easy runs: \(profile.easyRuns)", value: $profile.easyRuns, in: 0...4)
-                Stepper("Hot yoga classes: \(profile.yogaSessions)", value: $profile.yogaSessions, in: 0...4)
-                Toggle("Allow two sessions in a day", isOn: $profile.allowTwoADays)
-                Picker("Preferred long run day", selection: Binding(get: { profile.preferredLongRunDay ?? -1 }, set: { profile.preferredLongRunDay = $0 < 0 ? nil : $0 })) {
-                    Text("No preference").tag(-1)
-                    ForEach(0..<7, id: \.self) { Text(dayNames[$0]).tag($0) }
+            Group {
+                Section("Week") {
+                    Stepper("Strength sessions: \(profile.strengthSessionsPerWeek)", value: $profile.strengthSessionsPerWeek, in: 0...6)
+                    Toggle("Long run", isOn: $profile.includeLongRun)
+                    Toggle("Quality run (tempo or intervals)", isOn: $profile.includeQualityRun)
+                    Stepper("Easy runs: \(profile.easyRuns)", value: $profile.easyRuns, in: 0...4)
+                    Stepper("Hot yoga classes: \(profile.yogaSessions)", value: $profile.yogaSessions, in: 0...4)
+                    Toggle("Allow two sessions in a day", isOn: $profile.allowTwoADays)
+                    Picker("Preferred long run day", selection: Binding(get: { profile.preferredLongRunDay ?? -1 }, set: { profile.preferredLongRunDay = $0 < 0 ? nil : $0 })) {
+                        Text("No preference").tag(-1)
+                        ForEach(0..<7, id: \.self) { Text(dayNames[$0]).tag($0) }
+                    }
                 }
-            }
 
-            Section {
-                HStack(spacing: 6) {
-                    ForEach(0..<7, id: \.self) { index in
-                        let off = profile.unavailableDays.contains(index)
-                        Button(dayNames[index]) {
-                            if off { profile.unavailableDays.removeAll { $0 == index } } else { profile.unavailableDays.append(index) }
+                Section {
+                    HStack(spacing: 6) {
+                        ForEach(0..<7, id: \.self) { index in
+                            let off = profile.unavailableDays.contains(index)
+                            Button(dayNames[index]) {
+                                if off { profile.unavailableDays.removeAll { $0 == index } } else { profile.unavailableDays.append(index) }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .foregroundStyle(off ? Palette.inkTertiary : Palette.ink)
+                            .background(off ? Color.clear : Palette.accent, in: .capsule)
+                            .overlay(Capsule().strokeBorder(Palette.hairline))
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(dayNames[index]) \(off ? "unavailable" : "available")")
                         }
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                        .foregroundStyle(off ? Palette.inkTertiary : Palette.ink)
-                        .background(off ? Color.clear : Palette.ember.opacity(0.25), in: .capsule)
-                        .overlay(Capsule().strokeBorder(Palette.hairline))
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(dayNames[index]) \(off ? "unavailable" : "available")")
+                    }
+                } header: {
+                    Text("Days you can train")
+                } footer: {
+                    Text("Tap a day to mark it off. The planner never schedules on grey days.")
+                }
+
+                Section("Next focus") {
+                    Picker("Upper", selection: $profile.nextUpperFocus) {
+                        ForEach(FocusArea.areas(for: .upper)) { Text($0.displayName).tag($0) }
+                    }
+                    Picker("Lower", selection: $profile.nextLowerFocus) {
+                        ForEach(FocusArea.areas(for: .lower)) { Text($0.displayName).tag($0) }
                     }
                 }
-            } header: {
-                Text("Days you can train")
-            } footer: {
-                Text("Tap a day to mark it off. The planner never schedules on grey days.")
-            }
 
-            Section("Next focus") {
-                Picker("Upper", selection: $profile.nextUpperFocus) {
-                    ForEach(FocusArea.areas(for: .upper)) { Text($0.displayName).tag($0) }
-                }
-                Picker("Lower", selection: $profile.nextLowerFocus) {
-                    ForEach(FocusArea.areas(for: .lower)) { Text($0.displayName).tag($0) }
-                }
-            }
-
-            Section("Equipment") {
-                ForEach(Equipment.allCases, id: \.self) { item in
-                    Toggle(item.rawValue.capitalized, isOn: Binding(
-                        get: { profile.equipment.contains(item) },
-                        set: { on in var set = profile.equipment; if on { set.insert(item) } else { set.remove(item) }; profile.equipment = set }
-                    ))
-                }
-            }
-
-            Section {
-                LabeledContent("Place", value: profile.locationName)
-                Button {
-                    location.locate()
-                } label: {
-                    HStack {
-                        Label("Use my location", systemImage: "location.fill")
-                        Spacer()
-                        if case .requesting = location.state { ProgressView() }
+                Section("Equipment") {
+                    ForEach(Equipment.allCases, id: \.self) { item in
+                        Toggle(item.rawValue.capitalized, isOn: Binding(
+                            get: { profile.equipment.contains(item) },
+                            set: { on in var set = profile.equipment; if on { set.insert(item) } else { set.remove(item) }; profile.equipment = set }
+                        ))
                     }
                 }
-                if case .denied = location.state {
-                    Text("Location is off for Cadence. Turn it on in Settings, or keep the default.").font(.footnote).foregroundStyle(.secondary)
-                }
-                if case .failed(let message) = location.state {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Forecast")
-            } footer: {
-                Text("Forecasts come from Open-Meteo for the ten days ahead. Runs chase mild, dry, still days.")
-            }
 
-            Section {
-                Stepper("Bodyweight: \(Format.kg(profile.bodyweightKg)) kg", value: $profile.bodyweightKg, in: 40...200, step: 0.5)
-                    .onChange(of: profile.bodyweightKg) { _, _ in
-                        // A manual nudge is a manual value until Health next reports a reading.
-                        if profile.bodyweightFromHealthAt != nil, !syncing { profile.bodyweightFromHealthAt = nil }
-                    }
-            } header: {
-                Text("Body")
-            } footer: {
-                if let date = profile.bodyweightFromHealthAt {
-                    Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
-                } else {
-                    Text("Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
-                }
-            }
-
-            Section {
-                if !health.isAvailable {
-                    Text("Apple Health is not available on this device.").foregroundStyle(.secondary)
-                } else if health.state == .ready || health.isEnabled {
+                Section {
+                    LabeledContent("Place", value: profile.locationName)
                     Button {
-                        syncing = true
-                        Task {
-                            await health.sync(in: context, coordinator: coordinator)
-                            syncing = false
-                        }
+                        location.locate()
                     } label: {
                         HStack {
-                            Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+                            Label("Use my location", systemImage: "location.fill")
                             Spacer()
-                            if syncing { ProgressView() }
+                            if case .requesting = location.state { ProgressView() }
                         }
                     }
-                    .disabled(syncing)
-                    if let lastSync = health.lastSync {
-                        LabeledContent("Last sync", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+                    if case .denied = location.state {
+                        Text("Location is off for Cadence. Turn it on in Settings, or keep the default.").font(.footnote).foregroundStyle(.secondary)
                     }
-                } else {
-                    Button {
-                        Task { await health.requestAccess() }
-                    } label: {
-                        HStack {
-                            Label("Connect Apple Health", systemImage: "heart.fill")
-                            Spacer()
-                            if health.state == .requesting { ProgressView() }
-                        }
+                    if case .failed(let message) = location.state {
+                        Text(message).font(.footnote).foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Forecast")
+                } footer: {
+                    Text("Forecasts come from Open-Meteo for the ten days ahead. Runs chase mild, dry, still days.")
                 }
-                if let message = health.lastMessage {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Apple Health")
-            } footer: {
-                Text("Runs and hot yoga logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Syncs whenever Cadence opens.")
-            }
 
-            Section {
-                Button("Delete all sessions", role: .destructive) { confirmWipe = true }
-            } footer: {
-                Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                Section {
+                    Stepper("Bodyweight: \(Format.kg(profile.bodyweightKg)) kg", value: $profile.bodyweightKg, in: 40...200, step: 0.5)
+                        .onChange(of: profile.bodyweightKg) { _, _ in
+                            // A manual nudge is a manual value until Health next reports a reading.
+                            if profile.bodyweightFromHealthAt != nil, !syncing { profile.bodyweightFromHealthAt = nil }
+                        }
+                } header: {
+                    Text("Body")
+                } footer: {
+                    if let date = profile.bodyweightFromHealthAt {
+                        Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
+                    } else {
+                        Text("Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
+                    }
+                }
+
+                Section {
+                    Stepper(value: Binding(get: { profile.maxHeartRate ?? 185 }, set: { profile.maxHeartRate = $0; profile.heartRateFromHealthAt = nil }), in: 120...220) {
+                        LabeledContent("Max heart rate", value: profile.maxHeartRate.map { "\($0) bpm" } ?? "Not set")
+                    }
+                    Stepper(value: Binding(get: { profile.restingHeartRate ?? 55 }, set: { profile.restingHeartRate = $0; profile.heartRateFromHealthAt = nil }), in: 30...100) {
+                        LabeledContent("Resting heart rate", value: profile.restingHeartRate.map { "\($0) bpm" } ?? "Not set")
+                    }
+                } header: {
+                    Text("Heart rate")
+                } footer: {
+                    if let date = profile.heartRateFromHealthAt {
+                        Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
+                    } else {
+                        Text("Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
+                    }
+                }
+
+                Section {
+                    if !health.isAvailable {
+                        Text("Apple Health is not available on this device.").foregroundStyle(.secondary)
+                    } else if health.state == .ready || health.isEnabled {
+                        Button {
+                            syncing = true
+                            Task {
+                                await health.sync(in: context, coordinator: coordinator)
+                                syncing = false
+                            }
+                        } label: {
+                            HStack {
+                                Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+                                Spacer()
+                                if syncing { ProgressView() }
+                            }
+                        }
+                        .disabled(syncing)
+                        if let lastSync = health.lastSync {
+                            LabeledContent("Last sync", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+                        }
+                    } else {
+                        Button {
+                            Task { await health.requestAccess() }
+                        } label: {
+                            HStack {
+                                Label("Connect Apple Health", systemImage: "heart.fill")
+                                Spacer()
+                                if health.state == .requesting { ProgressView() }
+                            }
+                        }
+                    }
+                    if let message = health.lastMessage {
+                        Text(message).font(.footnote).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text("Runs and hot yoga logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Syncs whenever Cadence opens.")
+                }
+
+                Section {
+                    Button("Delete all sessions", role: .destructive) { confirmWipe = true }
+                } footer: {
+                    Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                }
             }
+            .listRowBackground(Palette.surface)
         }
+        .scrollContentBackground(.hidden)
+        .background(Palette.canvas)
         .onChange(of: location.state) { _, state in
             if case .located(let fix) = state {
                 profile.latitude = fix.latitude

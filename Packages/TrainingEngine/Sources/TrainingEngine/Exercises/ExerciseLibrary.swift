@@ -86,7 +86,7 @@ public enum ExerciseLibrary {
         Exercise(id: "bb-front-squat", name: "Front Squat", pattern: .squat, primary: .quads, secondary: [.core, .glutes], equipment: .barbell, role: .compound, startingWeightKg: 40, secondsPerRep: 4),
         Exercise(id: "hack-squat", name: "Hack Squat", pattern: .squat, primary: .quads, secondary: [.glutes], equipment: .machine, role: .compound, startingWeightKg: 60, secondsPerRep: 4),
         Exercise(id: "leg-press", name: "Leg Press", pattern: .squat, primary: .quads, secondary: [.glutes], equipment: .machine, role: .compound, startingWeightKg: 80),
-        Exercise(id: "leg-extension", name: "Leg Extension", pattern: .squat, primary: .quads, equipment: .machine, role: .isolation, startingWeightKg: 30),
+        Exercise(id: "leg-extension", name: "Leg Extension", pattern: .kneeExtension, primary: .quads, equipment: .machine, role: .isolation, startingWeightKg: 30),
         Exercise(id: "kb-sumo-squat", name: "Kettlebell Sumo Squat", pattern: .squat, primary: .glutes, secondary: [.quads], equipment: .kettlebell, role: .accessory, startingWeightKg: 16),
 
         // Hinge
@@ -94,11 +94,11 @@ public enum ExerciseLibrary {
         Exercise(id: "rdl", name: "Romanian Deadlift", pattern: .hinge, primary: .hamstrings, secondary: [.glutes, .back], equipment: .barbell, role: .compound, startingWeightKg: 50, secondsPerRep: 4),
         Exercise(id: "db-rdl", name: "Dumbbell Romanian Deadlift", pattern: .hinge, primary: .hamstrings, secondary: [.glutes], equipment: .dumbbell, role: .accessory, startingWeightKg: 20, secondsPerRep: 4),
         Exercise(id: "good-morning", name: "Good Morning", pattern: .hinge, primary: .hamstrings, secondary: [.glutes, .back], equipment: .barbell, role: .accessory, startingWeightKg: 25),
-        Exercise(id: "leg-curl", name: "Seated Leg Curl", pattern: .hinge, primary: .hamstrings, equipment: .machine, role: .isolation, startingWeightKg: 30),
-        Exercise(id: "nordic-curl", name: "Nordic Hamstring Curl", pattern: .hinge, primary: .hamstrings, equipment: .bodyweight, role: .isolation, startingWeightKg: 0, secondsPerRep: 5),
-        Exercise(id: "lying-leg-curl", name: "Lying Leg Curl", pattern: .hinge, primary: .hamstrings, equipment: .machine, role: .isolation, startingWeightKg: 30),
+        Exercise(id: "leg-curl", name: "Seated Leg Curl", pattern: .kneeFlexion, primary: .hamstrings, equipment: .machine, role: .isolation, startingWeightKg: 30),
+        Exercise(id: "nordic-curl", name: "Nordic Hamstring Curl", pattern: .kneeFlexion, primary: .hamstrings, equipment: .bodyweight, role: .isolation, startingWeightKg: 0, secondsPerRep: 5),
+        Exercise(id: "lying-leg-curl", name: "Lying Leg Curl", pattern: .kneeFlexion, primary: .hamstrings, equipment: .machine, role: .isolation, startingWeightKg: 30),
         Exercise(id: "smith-rdl", name: "Smith Machine Romanian Deadlift", pattern: .hinge, primary: .hamstrings, secondary: [.glutes, .back], equipment: .smith, role: .compound, startingWeightKg: 40, secondsPerRep: 4),
-        Exercise(id: "glute-ham-raise", name: "Glute Ham Raise", pattern: .hinge, primary: .hamstrings, secondary: [.glutes], equipment: .bodyweight, role: .isolation, startingWeightKg: 0, secondsPerRep: 4),
+        Exercise(id: "glute-ham-raise", name: "Glute Ham Raise", pattern: .kneeFlexion, primary: .hamstrings, secondary: [.glutes], equipment: .bodyweight, role: .isolation, startingWeightKg: 0, secondsPerRep: 4),
         Exercise(id: "back-extension", name: "Back Extension", pattern: .hinge, primary: .glutes, secondary: [.hamstrings, .back], equipment: .bodyweight, role: .isolation, startingWeightKg: 0),
 
         // Hip extension

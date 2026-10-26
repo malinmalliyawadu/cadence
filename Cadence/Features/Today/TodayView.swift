@@ -18,28 +18,25 @@ struct TodayView: View {
         return sessions.filter { calendar.isDate($0.date, inSameDayAs: date) }
     }
     private var forecastToday: DayForecast? { forecasts.first { calendar.isDate($0.date, inSameDayAs: now) }?.forecast }
-    private var weekHasPlan: Bool {
-        let start = coordinator.weekStart(containing: now)
-        return sessions.contains { $0.weekStart == start }
-    }
+    private var weekStart: Date { coordinator.weekStart(containing: now) }
+    private var weekSessions: [TrainingSession] { sessions.filter { $0.weekStart == weekStart } }
+    private var weekHasPlan: Bool { !weekSessions.isEmpty }
     private var snapshot: LoadSnapshot { coordinator.displaySnapshot(entries: sessions.compactMap(\.loadEntry), now: now) }
 
     var body: some View {
         NavigationStack {
             ZStack {
-                AtmosphereBackdrop(modality: upNext?.modality, forecast: forecastToday, intensity: upNext?.status == .completed ? 0.55 : 1)
+                ScreenBackground()
                 if weekHasPlan {
                     plannedContent
                 } else {
-                    EmptyPlanView()
+                    VStack(spacing: 0) {
+                        header.padding(.horizontal, 20)
+                        EmptyPlanView()
+                    }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                        .accessibilityLabel("Settings")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showSettings) { SettingsView() }
             .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
@@ -48,177 +45,227 @@ struct TodayView: View {
 
     private var plannedContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                hero
-                readinessStrip
-                if let upNext {
-                    primaryAction(for: upNext)
-                    let others = today.filter { $0 != upNext }
-                    if !others.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Also today").font(.headline2).foregroundStyle(Palette.ink)
-                            ForEach(others) { session in
-                                NavigationLink(value: session) { SessionRow(session: session) }
-                                    .buttonStyle(.plain)
-                            }
+            VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    conditions
+                }
+                activity
+                plan
+                if !tomorrow.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionHeader(title: "Tomorrow")
+                        ForEach(tomorrow) { session in
+                            NavigationLink(value: session) { SessionCard(session: session) }
+                                .buttonStyle(.plain)
                         }
                     }
-                } else {
-                    restCard
                 }
-                if !tomorrow.isEmpty { tomorrowSection }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .scrollEdgeEffectStyle(.soft, for: .top)
+        .statusBarScrim()
     }
 
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(Format.dayMonth.string(from: now))
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(Palette.inkSecondary)
-            if let upNext {
-                DisplayText(text: upNext.title)
-                Text(upNext.status == .completed ? "Done. \(upNext.subtitle)" : upNext.subtitle)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(upNext.modality.tint)
-            } else {
-                DisplayText(text: "Rest")
-                Text("Nothing planned. Recovery is training.")
-                    .font(.system(size: 20, weight: .medium))
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(Format.dayMonth.string(from: now))
+                    .font(.body2)
                     .foregroundStyle(Palette.inkSecondary)
+                Text(summary)
+                    .font(.title2)
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(2)
             }
-        }
-        .padding(.top, 12)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// The one prominent surface on the screen: open the session, or see it is done.
-    private func primaryAction(for session: TrainingSession) -> some View {
-        NavigationLink(value: session) {
-            HStack(spacing: 14) {
-                ModalityBadge(symbol: session.status == .completed ? "checkmark" : session.modality.symbolName, tint: session.status == .completed ? Palette.sage : session.modality.tint, size: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(session.status == .completed ? "Logged" : session.status == .skipped ? "Skipped" : "Start session")
-                        .font(.headline2).foregroundStyle(Palette.ink)
-                    Text(sessionDetail(session))
-                        .font(.subheadline).foregroundStyle(Palette.inkSecondary).lineLimit(2)
-                }
-                Spacer(minLength: 8)
-                if session.status == .planned {
-                    Text(Format.minutes(session.plannedMinutes)).font(.numeralSmall).foregroundStyle(Palette.inkSecondary)
-                }
-                Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.inkTertiary)
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 8)
+            Button { showSettings = true } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: 50, height: 50)
+                    .background(Palette.raised, in: .circle)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(Glass.regular.tint((session.status == .completed ? Palette.sage : session.modality.tint).opacity(0.22)).interactive(), in: .rect(cornerRadius: 26))
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(session.status == .completed ? "Logged" : "Start") \(session.title), \(sessionDetail(session))")
+        .padding(.top, 8)
     }
 
-    private func sessionDetail(_ session: TrainingSession) -> String {
-        switch session.modality {
-        case .strength:
-            return session.status == .completed ? "\(session.loggedSetCount) sets, session RPE \(String(format: "%.1f", session.rpe ?? 0))" : "\(session.subtitle), \(session.orderedExercises.count) movements, \(session.plannedSetCount) sets"
-        case .running:
-            return session.status == .completed ? "\(session.subtitle), RPE \(Int((session.rpe ?? 0).rounded()))" : (session.runKind == .easy ? "Conversational pace" : session.runKind == .long ? "Steady, finish strong" : "Threshold work in the middle")
-        case .yoga:
-            return session.status == .completed ? "RPE \(Int((session.rpe ?? 0).rounded()))" : "Counts as recovery for the lifts around it"
-        }
+    /// "Lower body and easy run", or "Rest day".
+    private var summary: String {
+        let titles = today.filter { $0.status != .skipped }.map(\.title)
+        guard let first = titles.first else { return "Rest day" }
+        return ([first] + titles.dropFirst().map { $0.lowercased() }).joined(separator: " and ")
     }
 
-    private var readinessStrip: some View {
+    private var conditions: some View {
         let zone = snapshot.zone
         return ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    GlassPill(symbol: zone.symbolName, text: zone == .building ? "Building baseline" : "\(zone.displayName) \(Format.ratio(snapshot.acwr))", tint: zone.tint)
-                    if let forecastToday {
-                        GlassPill(symbol: forecastToday.condition.symbolName, text: "\(Format.temperature(forecastToday.tempMaxC)) \(forecastToday.condition.displayName)", tint: Palette.sky)
-                        if forecastToday.precipitationProbability >= 0.3 {
-                            GlassPill(symbol: "drop.fill", text: "\(Format.percent(forecastToday.precipitationProbability)) rain", tint: Palette.sky)
-                        }
-                        if forecastToday.windKph >= 30 {
-                            GlassPill(symbol: "wind", text: "\(Int(forecastToday.windKph)) km/h", tint: Palette.sky)
-                        }
+            HStack(spacing: 8) {
+                if let forecastToday {
+                    Chip(symbol: forecastToday.condition.symbolName, text: "\(Format.temperature(forecastToday.tempMaxC)) \(forecastToday.condition.displayName)")
+                    if forecastToday.precipitationProbability >= 0.3 {
+                        Chip(symbol: "drop", text: "\(Format.percent(forecastToday.precipitationProbability)) rain")
+                    }
+                    if forecastToday.windKph >= 30 {
+                        Chip(symbol: "wind", text: "\(Int(forecastToday.windKph)) km/h")
                     }
                 }
+                Chip(symbol: zone.symbolName, text: zone == .building ? "Building baseline" : zone.displayName, tint: zone.tint)
             }
         }
         .scrollClipDisabled()
     }
 
-    private var restCard: some View {
-        GlassCard {
-            HStack(spacing: 14) {
-                ModalityBadge(symbol: "moon.zzz.fill", tint: Palette.rest)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Rest day").font(.headline2).foregroundStyle(Palette.ink)
-                    Text("Walk, sleep, eat. The plan picks up tomorrow.")
-                        .font(.subheadline).foregroundStyle(Palette.inkSecondary)
-                }
+    private var activity: some View {
+        let done = weekSessions.filter { $0.status == .completed }.count
+        let counted = weekSessions.filter { $0.status != .skipped }.count
+        return VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Your activity")
+            HStack(spacing: 12) {
+                StatCard(symbol: "waveform.path.ecg", title: "Load ratio", value: Format.ratio(snapshot.acwr), unit: snapshot.zone == .building ? "settling" : snapshot.zone.displayName.lowercased(), tint: snapshot.zone.tint)
+                StatCard(symbol: "checkmark.circle", title: "Sessions", value: "\(done)", unit: "of \(counted) this week")
             }
+            WeekLoadChart(days: weekDays, today: now, calendar: calendar)
         }
     }
 
-    private var tomorrowSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Tomorrow")
-                .font(.headline2)
-                .foregroundStyle(Palette.ink)
-            ForEach(tomorrow) { session in
-                NavigationLink(value: session) { SessionRow(session: session) }
-                    .buttonStyle(.plain)
+    private var weekDays: [WeekLoadChart.Day] {
+        (0..<7).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
+            let daySessions = weekSessions.filter { calendar.isDate($0.date, inSameDayAs: date) && $0.status != .skipped }
+            let logged = daySessions.filter { $0.status == .completed }.map(\.load).reduce(0, +)
+            let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: now)
+            let planned = isPast ? 0 : daySessions.filter { $0.status == .planned }.map(\.load).reduce(0, +)
+            return WeekLoadChart.Day(date: date, logged: logged, planned: planned)
+        }
+    }
+
+    @ViewBuilder
+    private var plan: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "Today's plan")
+            if today.isEmpty {
+                Card {
+                    HStack(spacing: 14) {
+                        SessionTile(symbol: "moon.zzz.fill", tint: Palette.rest)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Rest day").font(.rowTitle).foregroundStyle(Palette.ink)
+                            Text("Walk, sleep, eat. The plan picks up tomorrow.")
+                                .font(.body2).foregroundStyle(Palette.inkSecondary)
+                        }
+                    }
+                }
+            } else {
+                ForEach(today.sorted { ($0 == upNext ? 0 : 1) < ($1 == upNext ? 0 : 1) }) { session in
+                    NavigationLink(value: session) { SessionCard(session: session, isActive: session == upNext && session.status == .planned) }
+                        .buttonStyle(.plain)
+                }
             }
         }
     }
 }
 
-/// One session as a quiet glass control.
-struct SessionRow: View {
-    let session: TrainingSession
+/// An icon, a title, and one number with its unit.
+struct StatCard: View {
+    let symbol: String
+    let title: String
+    let value: String
+    let unit: String
+    var tint: Color = Palette.ink
 
     var body: some View {
-        GlassRow {
+        Card(padding: 14) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    IconDisc(symbol: symbol, tint: tint)
+                    Text(title).font(.rowTitle).foregroundStyle(Palette.ink)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(value).font(.numeral).foregroundStyle(Palette.ink)
+                        .contentTransition(.numericText())
+                    Text(unit).font(.body2).foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One session as a card: thumbnail, title with its length, what it involves, and progress.
+struct SessionCard: View {
+    let session: TrainingSession
+    var isActive = false
+    @Environment(\.modelContext) private var context
+    @Environment(PlanCoordinator.self) private var coordinator
+
+    private var isDone: Bool { session.status == .completed }
+
+    var body: some View {
+        Card(isActive: isActive, padding: 14) {
             HStack(spacing: 14) {
-                ModalityBadge(symbol: session.status == .completed ? "checkmark" : session.modality.symbolName, tint: session.status == .completed ? Palette.sage : session.modality.tint, size: 40)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(session.title)
-                        .font(.headline)
-                        .foregroundStyle(Palette.ink)
+                SessionTile(symbol: isDone ? "checkmark" : session.modality.symbolName, tint: isDone ? Palette.sage : session.modality.tint, size: 64)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Text(session.title).font(.rowTitle).foregroundStyle(Palette.ink).lineLimit(1)
+                        Text(badge)
+                            .font(.system(size: 13, weight: .medium).monospacedDigit())
+                            .foregroundStyle(isDone ? Palette.sage : Palette.inkSecondary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(Palette.raised, in: .capsule)
+                    }
                     Text(detail)
-                        .font(.subheadline)
+                        .font(.body2)
                         .foregroundStyle(Palette.inkSecondary)
                         .lineLimit(2)
+                    if session.modality == .strength, session.plannedSetCount > 0 {
+                        ProgressBar(value: Double(session.loggedSetCount) / Double(session.plannedSetCount), tint: isDone ? Palette.sage : Palette.accent)
+                            .padding(.top, 2)
+                    }
                 }
-                Spacer(minLength: 8)
-                if session.status == .planned {
-                    Text(Format.minutes(session.plannedMinutes))
-                        .font(.numeralSmall)
-                        .foregroundStyle(Palette.inkSecondary)
-                }
+                Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.inkTertiary)
             }
         }
-        .opacity(session.status == .skipped ? 0.55 : 1)
+        .opacity(session.status == .skipped ? 0.5 : 1)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(session.title), \(detail), \(session.status.rawValue)")
+        .accessibilityLabel("\(session.title), \(badge), \(detail)")
+    }
+
+    private var badge: String {
+        switch session.status {
+        case .completed: "Done"
+        case .skipped: "Skipped"
+        default: Format.minutes(session.plannedMinutes)
+        }
     }
 
     private var detail: String {
         switch session.modality {
         case .strength:
-            return session.status == .completed ? "\(session.loggedSetCount) sets logged" : "\(session.subtitle), \(session.orderedExercises.count) movements"
-        case .running, .yoga:
-            return session.status == .completed ? "Done, RPE \(Int((session.rpe ?? 0).rounded()))" : session.subtitle
+            return isDone
+                ? "\(session.loggedSetCount) sets, session RPE \(String(format: "%.1f", session.rpe ?? 0))"
+                : "\(session.subtitle), \(session.orderedExercises.count) movements, \(session.plannedSetCount) sets"
+        case .running:
+            if isDone {
+                let pace = session.actualPace.map { " at \(Format.pace($0)) /km" } ?? ""
+                return "\(session.subtitle)\(pace), RPE \(Int((session.rpe ?? 0).rounded()))"
+            }
+            guard let kind = session.runKind else { return "Run" }
+            let target = coordinator.runTarget(for: kind, asOf: session.date, in: context)
+            guard let pace = target.pace else { return "Zone \(target.zone), run by feel" }
+            return kind == .quality
+                ? "20 min at \(Format.pace(pace)), zone \(target.zone)"
+                : "\(Format.pace(pace)), zone \(target.zone)"
+        case .yoga:
+            return isDone ? "RPE \(Int((session.rpe ?? 0).rounded()))" : "Counts as recovery for the lifts around it"
         }
     }
 }

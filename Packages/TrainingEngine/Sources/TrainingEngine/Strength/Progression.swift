@@ -51,9 +51,9 @@ public struct ProgressionResult: Sendable, Hashable {
     public let rationale: String
 }
 
-/// RIR-driven autoregulated progression. The core idea: every working set gives us
+/// RIR-driven autoregulated progression. The core idea: the final working set gives us
 /// an estimated one-rep max (weight at reps + RIR), and the next prescription is
-/// whatever load would put the target rep range at the target RIR. That makes
+/// whatever load would put the target rep range at the target RIR on that final set. That makes
 /// progression continuous rather than "add 2.5 kg if you hit 3x8": a great day
 /// earns more, a bad day earns a smaller step back, and the athlete never has to
 /// decide what to load.
@@ -133,7 +133,7 @@ public enum Progression {
         } else if lastMeanRIR >= Double(last.targetRIR) + 1 {
             next = max(next, roundToIncrement(lastWeight + increment, increment: increment))
             decision = .increase
-            rationale = "Last time averaged \(formatRIR(lastMeanRIR)) RIR against a target of \(last.targetRIR). Adding load."
+            rationale = "Last time finished \(formatRIR(lastMeanRIR)) in reserve against a target of \(last.targetRIR). Adding load."
         } else if hitTopOfRange && lastMeanRIR >= Double(last.targetRIR) {
             next = max(next, roundToIncrement(lastWeight + increment, increment: increment))
             decision = .increase
@@ -141,7 +141,7 @@ public enum Progression {
         } else if lastMeanRIR <= Double(last.targetRIR) - 1 {
             next = min(next, lastWeight)
             decision = .reduce
-            rationale = "Last time averaged \(formatRIR(lastMeanRIR)) RIR, below the \(last.targetRIR) target. Easing back so every set stays clean."
+            rationale = "Last time finished \(formatRIR(lastMeanRIR)) in reserve, below the \(last.targetRIR) target. Easing back so every set stays clean."
         } else {
             next = roundToIncrement(lastWeight, increment: increment)
             decision = .hold

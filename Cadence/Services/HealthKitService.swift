@@ -6,7 +6,8 @@ import TrainingEngine
 
 /// Reads runs and yoga from Apple Health and completes Cadence sessions from them.
 /// Duration and distance come from the workout; effort comes from the Workout Effort
-/// Score the athlete rates in Fitness (1 to 10), falling back to the estimated score.
+/// Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart
+/// rate gives each run's average and the max and resting figures that set the run zones.
 @MainActor
 @Observable
 final class HealthKitService {
@@ -18,6 +19,7 @@ final class HealthKitService {
         let distanceKm: Double?
         let effort: Double?
         let effortIsEstimated: Bool
+        let averageHeartRate: Double?
 
         var minutes: Double { end.timeIntervalSince(start) / 60 }
     }
@@ -36,6 +38,13 @@ final class HealthKitService {
     private var estimatedEffortType: HKQuantityType { HKQuantityType(.estimatedWorkoutEffortScore) }
     private var distanceType: HKQuantityType { HKQuantityType(.distanceWalkingRunning) }
     private var bodyMassType: HKQuantityType { HKQuantityType(.bodyMass) }
+    private var heartRateType: HKQuantityType { HKQuantityType(.heartRate) }
+    private var restingHeartRateType: HKQuantityType { HKQuantityType(.restingHeartRate) }
+    private let beatsPerMinute = HKUnit.count().unitDivided(by: .minute())
+
+    private var readTypes: Set<HKObjectType> {
+        [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, HKCharacteristicType(.dateOfBirth)]
+    }
 
     var isAvailable: Bool { state != .unavailable }
 
@@ -48,9 +57,8 @@ final class HealthKitService {
     func requestAccess() async {
         guard HKHealthStore.isHealthDataAvailable() else { state = .unavailable; return }
         state = .requesting
-        let read: Set<HKObjectType> = [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType]
         do {
-            try await store.requestAuthorization(toShare: [], read: read)
+            try await store.requestAuthorization(toShare: [], read: readTypes)
             // Read permission is never reported directly; a request that completes is as good as it gets.
             state = .ready
             isEnabled = true
@@ -77,7 +85,8 @@ final class HealthKitService {
             let modality: Modality = workout.workoutActivityType == .yoga ? .yoga : .running
             let distance = workout.statistics(for: distanceType)?.sumQuantity()?.doubleValue(for: .meterUnit(with: .kilo))
             let (effort, estimated) = try await effortScore(for: workout)
-            results.append(Workout(id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance, effort: effort, effortIsEstimated: estimated))
+            let heartRate = workout.statistics(for: heartRateType)?.averageQuantity()?.doubleValue(for: beatsPerMinute)
+            results.append(Workout(id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance, effort: effort, effortIsEstimated: estimated, averageHeartRate: heartRate))
         }
         return results
     }
@@ -100,6 +109,28 @@ final class HealthKitService {
         let descriptor = HKSampleQueryDescriptor(predicates: [.quantitySample(type: bodyMassType)], sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)], limit: 1)
         guard let sample = try await descriptor.result(for: store).first else { return nil }
         return (sample.quantity.doubleValue(for: .gramUnit(with: .kilo)), sample.startDate)
+    }
+
+    /// Max and resting heart rate for zones. Max blends the robust observed peak over six months
+    /// with the age prediction; resting is the median of the last two weeks of daily readings.
+    func heartRateFigures() async throws -> (maximum: Int?, resting: Int?) {
+        let now = Date.now
+        let sixMonths = Calendar.current.date(byAdding: .month, value: -6, to: now) ?? now
+        let peaks = HKStatisticsCollectionQueryDescriptor(
+            predicate: .quantitySample(type: heartRateType, predicate: HKQuery.predicateForSamples(withStart: sixMonths, end: now)),
+            options: .discreteMax,
+            anchorDate: Calendar.current.startOfDay(for: now),
+            intervalComponents: DateComponents(day: 1)
+        )
+        let dailyPeaks = try await peaks.result(for: store).statistics().compactMap { $0.maximumQuantity()?.doubleValue(for: beatsPerMinute) }
+        let birth = try? store.dateOfBirthComponents().date
+        let age = birth.flatMap { Calendar.current.dateComponents([.year], from: $0, to: now).year }
+
+        let twoWeeks = Calendar.current.date(byAdding: .day, value: -14, to: now) ?? now
+        let resting = HKSampleQueryDescriptor(predicates: [.quantitySample(type: restingHeartRateType, predicate: HKQuery.predicateForSamples(withStart: twoWeeks, end: now))], sortDescriptors: [])
+        let readings = try await resting.result(for: store).map { $0.quantity.doubleValue(for: beatsPerMinute) }.sorted()
+        let median = readings.isEmpty ? nil : Int(readings[readings.count / 2].rounded())
+        return (HeartRateZones.estimatedMaximum(dailyPeaks: dailyPeaks, age: age), median)
     }
 
     // MARK: Syncing
@@ -129,6 +160,10 @@ final class HealthKitService {
     func sync(days: Int = 90, in context: ModelContext, coordinator: PlanCoordinator) async -> SyncSummary {
         guard state == .ready || (isEnabled && state == .notRequested) else { return SyncSummary() }
         if state == .notRequested { state = .ready }
+        // Heart rate arrived after the first permission request; ask once for anything new.
+        if (try? await store.statusForAuthorizationRequest(toShare: [], read: readTypes)) == .shouldRequest {
+            try? await store.requestAuthorization(toShare: [], read: readTypes)
+        }
         let calendar = coordinator.calendar
         let since = calendar.date(byAdding: .day, value: -days, to: .now) ?? .now
         var summary = SyncSummary()
@@ -141,6 +176,12 @@ final class HealthKitService {
                     profile.bodyweightFromHealthAt = mass.date
                     summary.bodyweightKg = rounded
                 }
+            }
+            if let figures = try? await heartRateFigures(), figures.maximum != nil || figures.resting != nil {
+                let profile = coordinator.profile(in: context)
+                if let maximum = figures.maximum { profile.maxHeartRate = maximum }
+                if let resting = figures.resting { profile.restingHeartRate = resting }
+                profile.heartRateFromHealthAt = .now
             }
             let workouts = try await workouts(since: since)
             let sessions = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.date >= since }))) ?? []
@@ -194,6 +235,7 @@ final class HealthKitService {
             if session.distanceKm != rounded { session.distanceKm = rounded; changed = true }
         }
         if let effort = workout.effort, session.rpe != effort { session.rpe = effort; changed = true }
+        if let heartRate = workout.averageHeartRate, session.averageHeartRate != heartRate.rounded() { session.averageHeartRate = heartRate.rounded(); changed = true }
         return changed
     }
 }

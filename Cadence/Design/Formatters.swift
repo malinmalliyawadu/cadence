@@ -1,4 +1,5 @@
 import Foundation
+import TrainingEngine
 
 enum Format {
     static func weight(_ kg: Double?) -> String {
@@ -17,6 +18,19 @@ enum Format {
         return "\(m) min"
     }
 
+    /// "6:05" for 365 seconds per kilometre.
+    static func pace(_ secondsPerKm: Double) -> String {
+        let total = Int(secondsPerKm.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    /// "6:00 to 6:40 /km".
+    static func pace(_ range: PaceRange) -> String {
+        "\(pace(range.fastest)) to \(pace(range.slowest)) /km"
+    }
+
+    static func heartRate(_ range: ClosedRange<Int>) -> String { "\(range.lowerBound) to \(range.upperBound) bpm" }
+
     static func temperature(_ c: Double) -> String { "\(Int(c.rounded()))°" }
 
     static func percent(_ fraction: Double) -> String { "\(Int((fraction * 100).rounded()))%" }
@@ -26,7 +40,7 @@ enum Format {
         return String(format: "%.2f", value)
     }
 
-    static func load(_ au: Double) -> String { "\(Int(au.rounded()))" }
+    static func load(_ au: Double) -> String { Int(au.rounded()).formatted() }
 
     static let weekday: DateFormatter = {
         let f = DateFormatter()

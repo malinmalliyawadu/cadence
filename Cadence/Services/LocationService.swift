@@ -1,4 +1,5 @@
 import CoreLocation
+import MapKit
 import Foundation
 import Observation
 
@@ -55,8 +56,10 @@ final class LocationService {
     private func resolveName(for location: CLLocation) async {
         let coordinate = location.coordinate
         var name = String(format: "%.2f, %.2f", coordinate.latitude, coordinate.longitude)
-        if let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first {
-            name = placemark.locality ?? placemark.subAdministrativeArea ?? placemark.administrativeArea ?? name
+        if let request = MKReverseGeocodingRequest(location: location),
+           let item = try? await request.mapItems.first,
+           let city = item.addressRepresentations?.cityName {
+            name = city
         }
         state = .located(Fix(latitude: coordinate.latitude, longitude: coordinate.longitude, name: name))
     }

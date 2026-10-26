@@ -34,6 +34,19 @@ final class TrainingSession {
     // Running
     var runKindRaw: String?
     var distanceKm: Double?
+    /// Average heart rate over the run, from Apple Health.
+    var averageHeartRate: Double?
+
+    /// Seconds per kilometre for a finished run.
+    var actualPace: Double? {
+        guard let distanceKm, distanceKm > 0, let minutes = actualMinutes else { return nil }
+        return minutes * 60 / distanceKm
+    }
+
+    var runEffort: RunEffort? {
+        guard modality == .running, status == .completed, let distanceKm, let minutes = actualMinutes else { return nil }
+        return RunEffort(date: completedAt ?? date, distanceKm: distanceKm, minutes: minutes)
+    }
 
     init(date: Date, modality: Modality, plannedMinutes: Double, weekStart: Date) {
         id = UUID()
@@ -95,11 +108,11 @@ final class TrainingSession {
         }
     }
 
-    /// Mean RIR across logged working sets, for strength sessions.
+    /// Mean RIR across the rated sets (each movement's final set), for strength sessions.
     var loggedMeanRIR: Double? {
-        let sets = exercises.flatMap(\.sets).filter { $0.completedAt != nil && $0.reps > 0 }
-        guard !sets.isEmpty else { return nil }
-        return Double(sets.map(\.rir).reduce(0, +)) / Double(sets.count)
+        let rirs = exercises.flatMap(\.sets).filter { $0.completedAt != nil && $0.reps > 0 }.compactMap(\.rir)
+        guard !rirs.isEmpty else { return nil }
+        return Double(rirs.reduce(0, +)) / Double(rirs.count)
     }
 
     var loggedSetCount: Int { exercises.flatMap(\.sets).filter { $0.completedAt != nil }.count }
@@ -178,6 +191,21 @@ final class PlannedExercise {
     var completedSets: [SetRecord] { orderedSets.filter { $0.completedAt != nil } }
     var isComplete: Bool { completedSets.count >= targetSets }
 
+    /// The record at a set position, logged or planned. Planned sets exist only once the athlete
+    /// has changed their weight or reps; until then a set follows `target(at:)`.
+    func record(at index: Int) -> SetRecord? { sets.first { $0.index == index } }
+
+    /// The first set still to do, in order.
+    var nextSetIndex: Int? { (0..<targetSets).first { record(at: $0)?.completedAt == nil } }
+
+    /// What a set is planned at: its own edited values, else the last set logged before it so the
+    /// next set is pre-filled with what was just done, else the prescription.
+    func target(at index: Int) -> (weightKg: Double, reps: Int) {
+        if let planned = record(at: index) { return (planned.weightKg, planned.reps) }
+        if let previous = completedSets.last(where: { $0.index < index }) { return (previous.weightKg, previous.reps) }
+        return (prescribedWeightKg ?? max(0, exercise?.startingWeightKg ?? 0), repLower)
+    }
+
     /// What the engine needs to progress this movement next time.
     var historyEntry: ExerciseHistoryEntry? {
         let performed = completedSets.filter { $0.reps > 0 }.map { PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir) }
@@ -191,11 +219,12 @@ final class SetRecord {
     var index: Int
     var weightKg: Double
     var reps: Int
-    var rir: Int
+    /// Asked only on a movement's final set; `nil` on the sets before it.
+    var rir: Int?
     var completedAt: Date?
     var exercise: PlannedExercise?
 
-    init(index: Int, weightKg: Double, reps: Int, rir: Int) {
+    init(index: Int, weightKg: Double, reps: Int, rir: Int? = nil) {
         self.index = index
         self.weightKg = weightKg
         self.reps = reps

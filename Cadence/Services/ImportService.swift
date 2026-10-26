@@ -69,7 +69,8 @@ enum ImportService {
                 let reps = working.map(\.reps)
                 let planned = PlannedExercise(exerciseID: exercise.exerciseID, order: order, sets: working.count, repRange: (reps.min() ?? 8)...(reps.max() ?? 12), targetRIR: assumedRIR)
                 planned.sets = working.enumerated().map { index, set in
-                    let record = SetRecord(index: index, weightKg: set.weightKg, reps: set.reps, rir: assumedRIR)
+                    // Unrated: progression assumes the last set landed on the target RIR.
+                    let record = SetRecord(index: index, weightKg: set.weightKg, reps: set.reps)
                     record.completedAt = session.completedAt
                     return record
                 }

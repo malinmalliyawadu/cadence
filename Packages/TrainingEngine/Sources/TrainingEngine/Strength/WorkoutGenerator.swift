@@ -222,6 +222,8 @@ public enum WorkoutGenerator {
         case .verticalPull: [.verticalPush, .horizontalPush]
         case .squat, .lunge: [.hinge, .hipExtension]
         case .hinge, .hipExtension: [.squat, .lunge]
+        case .kneeFlexion: [.kneeExtension, .squat]
+        case .kneeExtension: [.kneeFlexion, .hinge]
         case .elbowFlexion: [.elbowExtension, .horizontalPush]
         case .elbowExtension: [.elbowFlexion, .horizontalPull]
         case .lateralRaise, .wristFlexion, .calfRaise, .coreBrace: []

@@ -10,12 +10,19 @@ struct EmptyPlanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Spacer()
+            ProgressRing(progress: 0) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Palette.inkSecondary)
+            }
+            .frame(maxWidth: 220)
+            .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
                 DisplayText(text: "This week is unwritten.")
                 Text(sessions.isEmpty
                      ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve. Connect Apple Health in settings so runs and classes log themselves."
                      : "Plan the week and the lifts pick up exactly where your last session left off.")
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 17))
                     .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -23,11 +30,8 @@ struct EmptyPlanView: View {
                 Task { await coordinator.planWeek(in: context) }
             } label: {
                 Label(coordinator.phase == .planning ? "Planning" : "Plan my week", systemImage: "sparkles")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.primary)
             .disabled(coordinator.phase == .planning)
             if let note = coordinator.forecastError {
                 Label(note, systemImage: "cloud.slash").font(.footnote).foregroundStyle(Palette.inkTertiary)

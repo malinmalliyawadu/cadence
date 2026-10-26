@@ -1,25 +1,24 @@
 import Foundation
 
-/// One performed working set. RIR is the athlete's reps-in-reserve estimate when the set ended.
+/// One performed working set. RIR is the athlete's reps-in-reserve estimate when the set
+/// ended, and is only asked for on an exercise's final set: that set is the closest to
+/// failure, so it is the most honest estimate, and it is the one the target RIR refers to.
 public struct PerformedSet: Codable, Sendable, Hashable {
     public var weightKg: Double
     public var reps: Int
-    public var rir: Int
+    public var rir: Int?
 
-    public init(weightKg: Double, reps: Int, rir: Int) {
+    public init(weightKg: Double, reps: Int, rir: Int? = nil) {
         self.weightKg = weightKg
         self.reps = reps
-        self.rir = max(0, rir)
+        self.rir = rir.map { max(0, $0) }
     }
 
     /// Estimated one-rep max using Epley, extended with RIR so a set stopped short
-    /// of failure is treated as the longer set it could have been.
-    public var estimatedOneRepMax: Double {
-        Progression.estimatedOneRepMax(weightKg: weightKg, reps: reps, rir: rir)
+    /// of failure is treated as the longer set it could have been. `nil` for an unrated set.
+    public var estimatedOneRepMax: Double? {
+        rir.map { Progression.estimatedOneRepMax(weightKg: weightKg, reps: reps, rir: $0) }
     }
-
-    /// Session RPE contribution on the 0 to 10 scale.
-    public var rpe: Double { max(0, min(10, 10 - Double(rir))) }
 }
 
 /// Everything the generator needs to know about one past exposure to an exercise.
@@ -40,21 +39,34 @@ public struct ExerciseHistoryEntry: Codable, Sendable, Hashable {
 
     public var workingSets: [PerformedSet] { sets.filter { $0.reps > 0 } }
 
-    /// The e1RM this session supports. Uses the median of working sets rather than the
-    /// single best so one over-ambitious RIR estimate cannot drive next week's load.
+    /// The sets that carry an RIR. When none do (the athlete stopped before the final set,
+    /// or the history was imported), the last working set is taken to have landed on the
+    /// target, so progression still has an estimate to work from.
+    public var ratedSets: [PerformedSet] {
+        let working = workingSets
+        let rated = working.filter { $0.rir != nil }
+        if !rated.isEmpty { return rated }
+        guard var last = working.last else { return [] }
+        last.rir = targetRIR
+        return [last]
+    }
+
+    /// The e1RM this session supports, from the rated sets. With one rated set per exercise
+    /// that is the final set; where several are rated (older logs rated every set) the median
+    /// is used, so one over-ambitious estimate cannot drive next week's load.
     public var sessionOneRepMax: Double? { sessionOneRepMax(bodyweightKg: 0) }
 
     /// As above, with bodyweight added to every set's load for bodyweight movements.
     public func sessionOneRepMax(bodyweightKg: Double) -> Double? {
-        let values = workingSets.map { Progression.estimatedOneRepMax(weightKg: $0.weightKg + bodyweightKg, reps: $0.reps, rir: $0.rir) }.sorted()
+        let values = ratedSets.compactMap { set in set.rir.map { Progression.estimatedOneRepMax(weightKg: set.weightKg + bodyweightKg, reps: set.reps, rir: $0) } }.sorted()
         guard !values.isEmpty else { return nil }
         let mid = values.count / 2
         return values.count.isMultiple(of: 2) ? (values[mid - 1] + values[mid]) / 2 : values[mid]
     }
 
     public var meanRIR: Double? {
-        let sets = workingSets
-        guard !sets.isEmpty else { return nil }
-        return Double(sets.map(\.rir).reduce(0, +)) / Double(sets.count)
+        let rirs = ratedSets.compactMap(\.rir)
+        guard !rirs.isEmpty else { return nil }
+        return Double(rirs.reduce(0, +)) / Double(rirs.count)
     }
 }

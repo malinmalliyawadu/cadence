@@ -316,21 +316,141 @@ final class PlanCoordinator {
         sessions(weekStart: session.weekStart, in: context).filter { $0 != session && $0.status == .planned && !calendar.isDate($0.date, inSameDayAs: session.date) }
     }
 
-    /// Swaps a movement for another of the same role that trains the same primary muscle.
-    func swap(_ exercise: PlannedExercise, in context: ModelContext) {
-        guard let current = exercise.exercise, let session = exercise.session else { return }
-        let profile = profile(in: context)
-        let used = Set(session.exercises.map(\.exerciseID))
-        let candidates = ExerciseLibrary.exercises(for: current.half).filter {
-            $0.role == current.role && $0.primary == current.primary && !used.contains($0.id) && profile.equipment.contains($0.equipment)
+    /// Every movement that could replace this one, best fit for the slot and the session's focus first.
+    func swapOptions(for exercise: PlannedExercise, in context: ModelContext) -> [SwapOption] {
+        guard let current = exercise.exercise, let session = exercise.session else { return [] }
+        let familiarity = history(in: context).reduce(into: [String: Int]()) { counts, entry in
+            if !entry.workingSets.isEmpty { counts[entry.exerciseID, default: 0] += 1 }
         }
-        guard let replacement = candidates.first else { return }
-        let result = Progression.nextLoad(for: replacement, history: history(in: context), repRange: exercise.repRange, targetRIR: exercise.targetRIR, bodyweightKg: profile.bodyweightKg)
+        return SwapRanking.options(
+            replacing: current,
+            focus: session.focus,
+            excluding: Set(session.exercises.map(\.exerciseID)),
+            equipment: profile(in: context).equipment,
+            familiarity: familiarity
+        )
+    }
+
+    /// What the replacement would be prescribed at in this slot, from its own history.
+    func prescription(for replacement: Exercise, in exercise: PlannedExercise, history: [ExerciseHistoryEntry], bodyweightKg: Double) -> ProgressionResult {
+        Progression.nextLoad(for: replacement, history: history, repRange: exercise.repRange, targetRIR: exercise.targetRIR, bodyweightKg: bodyweightKg)
+    }
+
+    /// Puts `replacement` in this slot, keeping the scheme and prescribing its load from its own history.
+    func swap(_ exercise: PlannedExercise, to replacement: Exercise, in context: ModelContext) {
+        let result = prescription(for: replacement, in: exercise, history: history(in: context), bodyweightKg: profile(in: context).bodyweightKg)
         exercise.exerciseID = replacement.id
         exercise.prescribedWeightKg = result.weightKg
         exercise.rationale = result.rationale
         for set in exercise.sets { context.delete(set) }
         exercise.sets = []
         try? context.save()
+    }
+
+    // MARK: Set plan
+
+    /// Logs the set at `index`, keeping any planned record so the row does not move.
+    func logSet(_ exercise: PlannedExercise, at index: Int, weightKg: Double, reps: Int, rir: Int?, in context: ModelContext) {
+        let set = exercise.record(at: index) ?? {
+            let new = SetRecord(index: index, weightKg: weightKg, reps: reps)
+            new.exercise = exercise
+            exercise.sets.append(new)
+            return new
+        }()
+        set.weightKg = weightKg
+        set.reps = reps
+        set.rir = rir
+        set.completedAt = .now
+        try? context.save()
+    }
+
+    /// Puts a logged set back in the plan at the values it was logged at.
+    func unlogSet(_ set: SetRecord, in context: ModelContext) {
+        set.completedAt = nil
+        set.rir = nil
+        try? context.save()
+    }
+
+    /// Changes what an upcoming set is planned at.
+    func planSet(_ exercise: PlannedExercise, at index: Int, weightKg: Double, reps: Int, in context: ModelContext) {
+        if let set = exercise.record(at: index) {
+            set.weightKg = weightKg
+            set.reps = reps
+        } else {
+            let set = SetRecord(index: index, weightKg: weightKg, reps: reps)
+            set.exercise = exercise
+            exercise.sets.append(set)
+        }
+        try? context.save()
+    }
+
+    /// Adds a set at the end, planned like the one before it.
+    func addSet(to exercise: PlannedExercise, in context: ModelContext) {
+        guard exercise.targetSets < 10 else { return }
+        let last = exercise.target(at: exercise.targetSets - 1)
+        exercise.targetSets += 1
+        refreshMinutes(exercise.session)
+        planSet(exercise, at: exercise.targetSets - 1, weightKg: last.weightKg, reps: last.reps, in: context)
+    }
+
+    /// Removes the last set, as long as it has not been logged and one set remains.
+    func removeLastSet(from exercise: PlannedExercise, in context: ModelContext) {
+        let last = exercise.targetSets - 1
+        guard last > 0, exercise.record(at: last)?.completedAt == nil else { return }
+        if let planned = exercise.record(at: last) { context.delete(planned) }
+        exercise.targetSets = last
+        refreshMinutes(exercise.session)
+        try? context.save()
+    }
+
+    /// Switches a movement to a different scheme for this session and works the weight out from
+    /// the athlete's estimated max at the new rep range. Only before anything is logged.
+    func apply(_ preset: SchemePreset, to exercise: PlannedExercise, in context: ModelContext) {
+        guard exercise.completedSets.isEmpty, let movement = exercise.exercise else { return }
+        exercise.targetSets = preset.sets
+        exercise.repLower = preset.reps.lowerBound
+        exercise.repUpper = preset.reps.upperBound
+        for set in exercise.sets { context.delete(set) }
+        exercise.sets = []
+        refreshMinutes(exercise.session)
+        let history = history(in: context)
+        let bodyweight = profile(in: context).bodyweightKg
+        if let full = Progression.load(for: movement, history: history, reps: preset.reps.lowerBound, rir: exercise.targetRIR, bodyweightKg: bodyweight) {
+            // A stalled movement is on a deload week whatever the scheme, so keep it 10% lighter.
+            let deload = Progression.nextLoad(for: movement, history: history, repRange: preset.reps, targetRIR: exercise.targetRIR, bodyweightKg: bodyweight).decision == .deload
+            let weight = deload ? roundToIncrement(full * 0.9, increment: movement.equipment.incrementKg) : full
+            exercise.prescribedWeightKg = weight
+            exercise.rationale = deload
+                ? "\(preset.name) today: \(preset.sets) × \(preset.reps.lowerBound) to \(preset.reps.upperBound). Still a deload week, so \(Format.weight(weight)) is 10% under what your estimated max gives for \(preset.reps.lowerBound) reps."
+                : "\(preset.name) today: \(preset.sets) × \(preset.reps.lowerBound) to \(preset.reps.upperBound). \(Format.weight(weight)) is \(preset.reps.lowerBound) reps at \(exercise.targetRIR) in reserve from your estimated max."
+        } else {
+            exercise.rationale = "\(preset.name) today: \(preset.sets) × \(preset.reps.lowerBound) to \(preset.reps.upperBound). No history on this movement yet, so work up to a weight where \(preset.reps.lowerBound) reps leaves \(exercise.targetRIR) in reserve."
+        }
+        try? context.save()
+    }
+
+    /// Re-estimates a strength session's length after its sets or reps change, on the same model
+    /// the generator uses, so the duration and the planned load stay honest.
+    private func refreshMinutes(_ session: TrainingSession?) {
+        guard let session, session.modality == .strength else { return }
+        let work = session.exercises.compactMap { planned in
+            planned.exercise.map {
+                ExercisePrescription(exercise: $0, sets: planned.targetSets, repRange: planned.repRange, targetRIR: planned.targetRIR,
+                                     weightKg: planned.prescribedWeightKg, isFocus: planned.isFocus, rationale: planned.rationale).estimatedMinutes
+            }
+        }
+        session.plannedMinutes = (8 + work.reduce(0, +)).rounded() // 8 minutes of warm-up, as the generator assumes
+    }
+
+    // MARK: Runs
+
+    /// Pace and heart-rate targets for a run, from the last eight weeks of runs and the athlete's
+    /// heart-rate figures. Computed per call; the history is a few dozen rows.
+    func runTarget(for kind: RunKind, asOf date: Date = .now, in context: ModelContext) -> RunTarget {
+        let running = Modality.running.rawValue
+        let completed = SessionStatus.completed.rawValue
+        let runs = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.modalityRaw == running && $0.statusRaw == completed }))) ?? []
+        let vdot = RunPacing.fitness(from: runs.compactMap(\.runEffort), asOf: date)
+        return RunPacing.target(for: kind, vdot: vdot, zones: profile(in: context).heartRateZones)
     }
 }

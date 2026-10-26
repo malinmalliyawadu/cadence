@@ -7,19 +7,22 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  50 tests in under a second. Everything that decides what to train lives here, never in views.
+  66 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots.
+  - `Strength/SwapRanking.swift` - orders replacements for a movement: same muscle and pattern, then the focus, then familiarity.
+  - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
   - `Load/TrainingLoad.swift` - session-RPE load, EWMA acute:chronic ratio, monotony, strain, readiness.
   - `Planning/WeekPlanner.swift` - weekly load budget, then exhaustive scored search over day assignments.
   - `Planning/Weather.swift` - running score from a daily forecast (weighted geometric mean).
+  - `Running/RunTargets.swift` - target pace from recent runs (Daniels VDOT, best run of eight weeks) and heart-rate zones (Karvonen when resting HR is known).
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
-- `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation. iOS 26+, Liquid Glass.
+- `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs and yoga from Apple Health, effort from Workout Effort Score.
   - `Services/ImportService.swift` - DEBUG only. `-importCSV <path>` launch argument seeds a simulator with real history. There is no import UI by Malin's request; Apple Health is the source for runs, yoga and bodyweight.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
-  - `Design/` - palette, type, the mesh-gradient backdrop and glass helpers.
+  - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
 - `project.yml` - XcodeGen spec. `Cadence.xcodeproj` is generated and git-ignored: run `xcodegen generate` after cloning or editing the spec.
 
 ## Build and run
@@ -36,15 +39,21 @@ Health access is read only. The simulator has no Fitness app, so to exercise the
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
 EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
-Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence -importCSV /path/export.csv`.
+TestFlight: archive with `-allowProvisioningUpdates CURRENT_PROJECT_VERSION=$(date +%Y%m%d%H%M)` (team WDB2HN7DW7), then
+`xcodebuild -exportArchive -archivePath build/Cadence.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates`
+(method app-store-connect, destination upload). Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
+App Store Connect rejects uploads without `NSHealthUpdateUsageDescription` even though Health access is read only; keep it.
+Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence.fitness -importCSV /path/export.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 
 ## The training model, and why
 
-- **Progression is continuous, not "add 2.5 kg when you hit 3x8".** Each working set yields an
-  estimated 1RM via Epley with RIR folded in as unperformed reps. The next prescription is the
-  load that puts the bottom of the rep range at the target RIR. The session e1RM is the median
-  working set, so one optimistic RIR cannot drive next week. Jumps are capped at two increments.
+- **Progression is continuous, not "add 2.5 kg when you hit 3x8".** RIR is asked once per
+  movement, on the final set (closest to failure, so the most honest, and the set the target
+  refers to). That set yields an estimated 1RM via Epley with RIR folded in as unperformed reps.
+  The next prescription is the load that puts the bottom of the rep range at the target RIR.
+  Where several sets are rated (older logs) the median is used; where none are (imports, or the
+  athlete stopped early) the last working set is assumed to land on the target. Jumps are capped at two increments.
   Three sessions without e1RM growth trigger a 10% deload. Bodyweight movements progress on
   bodyweight plus added load, so dips and pull-ups are not stuck at "0 kg".
 - **One load scale for everything.** Session RPE times minutes (Foster). Strength RPE is derived
@@ -66,8 +75,13 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
 
 - Weights are kilograms, per hand for dumbbells, added load for bodyweight movements.
 - Dates: the week starts Monday (`PlanCoordinator.calendar`). Day indices in preferences are 0 = Monday.
-- Imported sets have no RIR; 2 is assumed and the UI says so. Imports are idempotent via `importKey`.
+- A `SetRecord` with no `completedAt` is a planned set: the athlete changed that set's weight or reps ahead of time. `PlannedExercise.target(at:)` resolves what a set is planned at.
+- `SetRecord.rir` is optional and set only on a movement's final set. Imported sets have none; progression assumes the target and the UI says so. Imports are idempotent via `importKey`.
 - Health workouts match by day and modality: complete a planned session, enrich a completed one, else create.
 - No em dashes anywhere in copy. Sentence case. Words say what happens ("Log set 3 of 4").
-- Design: glass only on things you can act on; one bold element per screen; three modality hues
-  (ember, sky, heat) carry the identity; numbers in rounded monospaced digits.
+- Design: true black canvas, flat cards with a hairline edge (no gradients anywhere, Malin finds them tacky), one electric
+  blue accent for whatever is active (the session to start, the movement being logged, today's bar,
+  the one primary button). Outlined chips for facts, a progress ring as the hero on run and yoga
+  screens, hatched bars for weekly load. Words at medium weight, numbers semibold monospaced.
+  Running and yoga use cool neighbours of the blue (sky, violet) only where charts need to tell
+  modalities apart. Weight and reps take keyboard entry as well as the steppers.

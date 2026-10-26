@@ -23,7 +23,7 @@ struct CadenceApp: App {
                 .environment(coordinator)
                 .environment(health)
                 .preferredColorScheme(.dark)
-                .tint(Palette.ember)
+                .tint(Palette.accent)
         }
         .modelContainer(container)
     }

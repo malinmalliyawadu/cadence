@@ -13,7 +13,8 @@ struct ProgressionTests {
             date: Date(timeIntervalSinceNow: -Double(daysAgo) * day),
             targetReps: targetReps,
             targetRIR: targetRIR,
-            sets: Array(repeating: PerformedSet(weightKg: weight, reps: reps, rir: rir), count: sets)
+            // Only the final set is rated, as the app logs it.
+            sets: Array(repeating: PerformedSet(weightKg: weight, reps: reps), count: sets - 1) + [PerformedSet(weightKg: weight, reps: reps, rir: rir)]
         )
     }
 
@@ -137,7 +138,7 @@ struct ProgressionTests {
         #expect(result.decision == .start)
     }
 
-    @Test("Session e1RM uses the median set, not the best set")
+    @Test("Where several sets are rated, session e1RM uses the median, not the best")
     func medianSet() {
         let entry = ExerciseHistoryEntry(exerciseID: bench.id, date: .now, targetReps: 5...8, targetRIR: 2, sets: [
             PerformedSet(weightKg: 80, reps: 8, rir: 4), // optimistic outlier
@@ -145,5 +146,28 @@ struct ProgressionTests {
             PerformedSet(weightKg: 80, reps: 6, rir: 2),
         ])
         #expect(abs(entry.sessionOneRepMax! - Progression.estimatedOneRepMax(weightKg: 80, reps: 6, rir: 2)) < 0.001)
+    }
+
+    @Test("Session e1RM and mean RIR come from the rated final set")
+    func finalSetRated() {
+        let entry = ExerciseHistoryEntry(exerciseID: bench.id, date: .now, targetReps: 5...8, targetRIR: 2, sets: [
+            PerformedSet(weightKg: 80, reps: 8),
+            PerformedSet(weightKg: 80, reps: 7),
+            PerformedSet(weightKg: 80, reps: 6, rir: 1),
+        ])
+        #expect(entry.meanRIR == 1)
+        #expect(abs(entry.sessionOneRepMax! - Progression.estimatedOneRepMax(weightKg: 80, reps: 6, rir: 1)) < 0.001)
+    }
+
+    @Test("With no rated set, the last working set is assumed to land on the target")
+    func noSetRated() {
+        let entry = ExerciseHistoryEntry(exerciseID: bench.id, date: .now, targetReps: 5...8, targetRIR: 2, sets: [
+            PerformedSet(weightKg: 80, reps: 8),
+            PerformedSet(weightKg: 80, reps: 6),
+        ])
+        #expect(entry.meanRIR == 2)
+        #expect(abs(entry.sessionOneRepMax! - Progression.estimatedOneRepMax(weightKg: 80, reps: 6, rir: 2)) < 0.001)
+        let result = Progression.nextLoad(for: bench, history: [entry], repRange: 5...8, targetRIR: 2)
+        #expect(result.decision != .start)
     }
 }

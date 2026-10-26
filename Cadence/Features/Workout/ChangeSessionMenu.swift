@@ -52,11 +52,9 @@ struct ChangeSessionMenu: View {
                 }
             }
         } label: {
-            Label("Change", systemImage: "arrow.triangle.swap")
-                .font(.subheadline.weight(.semibold))
+            Chip(symbol: "arrow.triangle.swap", text: "Change", tint: Palette.accent)
+                .contentShape(.capsule)
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
         .disabled(!isAvailable)
         .opacity(isAvailable ? 1 : 0)
         .accessibilityHidden(!isAvailable)

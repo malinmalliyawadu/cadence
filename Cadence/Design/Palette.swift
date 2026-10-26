@@ -1,29 +1,37 @@
 import SwiftUI
 import TrainingEngine
 
-/// Semantic colour tokens. Three modality hues carry the whole identity; everything
-/// else is white at a few opacities over the night base so glass has room to work.
+/// Semantic colour tokens. True black, two flat greys for surfaces, and one
+/// electric blue that marks whatever is active: the session to start, the set being logged,
+/// today's bar. Running and yoga get cool neighbours of the blue so charts can tell them apart.
 enum Palette {
-    static let night = Color(red: 0.027, green: 0.035, blue: 0.059)
-    static let ember = Color(red: 1.0, green: 0.416, blue: 0.239)
-    static let sky = Color(red: 0.298, green: 0.788, blue: 0.941)
-    static let heat = Color(red: 0.945, green: 0.357, blue: 0.710)
-    static let rest = Color(red: 0.55, green: 0.60, blue: 0.70)
+    static let canvas = Color.black
+    static let surface = Color(red: 0.086, green: 0.086, blue: 0.094)
+    static let raised = Color(red: 0.137, green: 0.137, blue: 0.153)
 
-    static let sage = Color(red: 0.482, green: 0.894, blue: 0.584)
-    static let amber = Color(red: 1.0, green: 0.784, blue: 0.341)
-    static let rose = Color(red: 1.0, green: 0.302, blue: 0.427)
+    static let accent = Color(red: 0.200, green: 0.408, blue: 1.0)
+    static let accentDeep = Color(red: 0.090, green: 0.165, blue: 0.420)
 
-    static let ink = Color.white.opacity(0.92)
+    static let strength = accent
+    static let sky = Color(red: 0.271, green: 0.808, blue: 0.890)
+    static let violet = Color(red: 0.663, green: 0.533, blue: 1.0)
+    static let rest = Color(red: 0.52, green: 0.54, blue: 0.60)
+
+    static let sage = Color(red: 0.373, green: 0.851, blue: 0.565)
+    static let amber = Color(red: 1.0, green: 0.769, blue: 0.341)
+    static let rose = Color(red: 1.0, green: 0.361, blue: 0.459)
+
+    static let ink = Color.white.opacity(0.95)
     static let inkSecondary = Color.white.opacity(0.62)
     static let inkTertiary = Color.white.opacity(0.4)
-    static let hairline = Color.white.opacity(0.12)
+    static let hairline = Color.white.opacity(0.08)
+    static let stroke = Color.white.opacity(0.14)
 
     static func color(for modality: Modality) -> Color {
         switch modality {
-        case .strength: ember
+        case .strength: strength
         case .running: sky
-        case .yoga: heat
+        case .yoga: violet
         }
     }
 
