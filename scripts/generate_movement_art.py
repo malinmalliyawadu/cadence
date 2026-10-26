@@ -1,23 +1,22 @@
-#!/usr/bin/env python3
-"""Generates the movement drawings and muscle map layers in Assets.xcassets.
+"""Generates the movement photos and muscle map layers in Assets.xcassets.
 
 Both asset groups are generated wholesale: edit this script, not the asset folders.
 
-    git clone --depth 1 https://github.com/everkinetic/data /tmp/everkinetic
+    git clone --depth 1 https://github.com/yuhonas/free-exercise-db /tmp/free-exercise-db
     git clone --depth 1 https://github.com/HichamELBSI/react-native-body-highlighter /tmp/body-highlighter
-    python3 scripts/generate_movement_art.py /tmp/everkinetic /tmp/body-highlighter
+    python3 scripts/generate_movement_art.py /tmp/free-exercise-db /tmp/body-highlighter
 
-Needs rsvg-convert (brew install librsvg) and Pillow, used to measure drawing bounds.
+Needs rsvg-convert (brew install librsvg) and Pillow.
 
-Movement drawings come from Everkinetic (CC BY-SA 4.0). Each has a relaxed and a tensed
-frame. The white fill is dropped and the line work kept as a template image, so the app
-tints it from the palette. The recoloured drawings stay under CC BY-SA 4.0.
+Movement photos come from Free Exercise DB (public domain, Unlicense). Each exercise has two
+photos, the starting position and the other end of the movement, in that order. They are
+cropped to 3:2 and scaled down so every photo sits in the same frame.
 
 The muscle map comes from react-native-body-highlighter (MIT). Each side is split into one
 template layer per MuscleGroup plus a base layer with everything else, so the app can tint
 the primary and secondary muscles of a movement.
 
-Both licences are credited in the app (CreditsView).
+Both are credited in the app (CreditsView).
 """
 
 import json
@@ -35,66 +34,96 @@ REPO = Path(__file__).resolve().parent.parent
 ASSETS = REPO / "Cadence/Resources/Assets.xcassets"
 LIBRARY = REPO / "Packages/TrainingEngine/Sources/TrainingEngine/Exercises/ExerciseLibrary.swift"
 
-# Library movement id -> Everkinetic drawing id. Only drawings that show the movement as
-# programmed: no drawing beats one with the wrong bench angle or a different exercise.
-# A different implement is allowed where the motion is the same (a dumbbell for the
-# kettlebell sumo squat, a barbell for the ab wheel).
-DRAWINGS = {
-    "bb-bench": "0042",
-    "db-incline-press": "0080",
-    "cable-fly": "0048",
-    "cg-bench": "0049",
-    "machine-chest-press": "0066",
-    "hs-chest-press": "0066",
-    "smith-bench": "0078",
-    "smith-incline-bench": "0081",
-    "machine-dip": "0171",
-    "bb-row": "0026",
-    "db-row": "0024",
-    "seated-cable-row": "0025",
-    "t-bar-row": "0029",
-    "bb-ohp": "0004",
-    "lateral-raise": "0018",
-    "front-raise": "0033",
-    "pull-up": "0087",
-    "lat-pulldown": "0096",
-    "neutral-pull-up": "0090",
-    "straight-arm-pulldown": "0092",
-    "rear-delt-fly": "0032",
-    "bb-curl": "0211",
-    "incline-db-curl": "0214",
-    "hammer-curl": "0227",
-    "skull-crusher": "0183",
-    "cable-pushdown": "0205",
-    "cable-curl": "0212",
-    "db-curl": "0224",
-    "machine-preacher-curl": "0236",
-    "bb-back-squat": "0122",
-    "bb-front-squat": "0138",
-    "leg-press": "0127",
-    "leg-extension": "0142",
-    "kb-sumo-squat": "0152",
-    "bb-deadlift": "0099",
-    "rdl": "0118",
-    "db-rdl": "0107",
-    "good-morning": "0101",
-    "leg-curl": "0119",
-    "lying-leg-curl": "0117",
-    "smith-rdl": "0100",
-    "back-extension": "0103",
-    "cable-kickback": "0112",
-    "hip-abduction": "0156",
-    "hip-adduction": "0157",
-    "walking-lunge": "0121",
-    "reverse-lunge": "0129",
-    "step-up": "0137",
-    "standing-calf-raise": "0282",
-    "seated-calf-raise": "0279",
-    "smith-calf-raise": "0280",
-    "cable-crunch": "0288",
-    "ab-wheel": "0286",
+# Library movement id -> Free Exercise DB exercise id. Only photos that show the movement as
+# programmed: no photo beats one with the wrong bench angle or a different exercise. A
+# different implement is allowed where the motion is the same (a dumbbell for the kettlebell
+# sumo squat, a barbell for the Smith machine glute bridge and calf raise, a landmine for the
+# T-bar row), and the unweighted version stands in for a weighted one.
+PHOTOS = {
+    "bb-bench": "Barbell_Bench_Press_-_Medium_Grip",
+    "db-incline-press": "Incline_Dumbbell_Press",
+    "db-flat-press": "Dumbbell_Bench_Press",
+    "cable-fly": "Cable_Crossover",
+    "dip": "Dips_-_Chest_Version",
+    "cg-bench": "Close-Grip_Barbell_Bench_Press",
+    "hs-incline-press": "Leverage_Incline_Chest_Press",
+    "hs-chest-press": "Leverage_Chest_Press",
+    "machine-chest-press": "Machine_Bench_Press",
+    "smith-bench": "Smith_Machine_Bench_Press",
+    "smith-incline-bench": "Smith_Machine_Incline_Bench_Press",
+    "machine-fly": "Butterfly",
+    "machine-dip": "Dip_Machine",
+    "bb-row": "Bent_Over_Barbell_Row",
+    "db-row": "One-Arm_Dumbbell_Row",
+    "chest-supported-row": "Lying_T-Bar_Row",
+    "seated-cable-row": "Seated_Cable_Rows",
+    "face-pull": "Face_Pull",
+    "hs-iso-row": "Leverage_Iso_Row",
+    "t-bar-row": "Bent_Over_Two-Arm_Long_Bar_Row",
+    "machine-rear-delt-fly": "Reverse_Machine_Flyes",
+    "rack-pull": "Rack_Pulls",
+    "bb-ohp": "Standing_Military_Press",
+    "db-shoulder-press": "Seated_Dumbbell_Press",
+    "lateral-raise": "Side_Lateral_Raise",
+    "cable-lateral-raise": "Standing_Low-Pulley_Deltoid_Raise",
+    "machine-shoulder-press": "Machine_Shoulder_Military_Press",
+    "hs-shoulder-press": "Leverage_Shoulder_Press",
+    "front-raise": "Front_Dumbbell_Raise",
+    "pull-up": "Pullups",
+    "chin-up": "Chin-Up",
+    "lat-pulldown": "Wide-Grip_Lat_Pulldown",
+    "neutral-pull-up": "V-Bar_Pullup",
+    "straight-arm-pulldown": "Straight-Arm_Pulldown",
+    "rear-delt-fly": "Seated_Bent-Over_Rear_Delt_Raise",
+    "bb-curl": "Barbell_Curl",
+    "incline-db-curl": "Incline_Dumbbell_Curl",
+    "hammer-curl": "Hammer_Curls",
+    "skull-crusher": "EZ-Bar_Skullcrusher",
+    "cable-pushdown": "Triceps_Pushdown",
+    "overhead-cable-ext": "Cable_Rope_Overhead_Triceps_Extension",
+    "cable-curl": "Standing_Biceps_Cable_Curl",
+    "db-curl": "Dumbbell_Bicep_Curl",
+    "machine-preacher-curl": "Machine_Preacher_Curls",
+    "reverse-curl": "Reverse_Barbell_Curl",
+    "wrist-curl": "Seated_Palm-Up_Barbell_Wrist_Curl",
+    "reverse-wrist-curl": "Seated_Palms-Down_Barbell_Wrist_Curl",
+    "cable-wrist-curl": "Cable_Wrist_Curl",
+    "bb-back-squat": "Barbell_Squat",
+    "bb-front-squat": "Front_Barbell_Squat",
+    "hack-squat": "Hack_Squat",
+    "leg-press": "Leg_Press",
+    "leg-extension": "Leg_Extensions",
+    "kb-sumo-squat": "Plie_Dumbbell_Squat",
+    "bb-deadlift": "Barbell_Deadlift",
+    "rdl": "Romanian_Deadlift",
+    "db-rdl": "Stiff-Legged_Dumbbell_Deadlift",
+    "good-morning": "Good_Morning",
+    "leg-curl": "Seated_Leg_Curl",
+    "nordic-curl": "Natural_Glute_Ham_Raise",
+    "lying-leg-curl": "Lying_Leg_Curls",
+    "smith-rdl": "Smith_Machine_Stiff-Legged_Deadlift",
+    "glute-ham-raise": "Glute_Ham_Raise",
+    "back-extension": "Hyperextensions_Back_Extensions",
+    "hip-thrust": "Barbell_Hip_Thrust",
+    "cable-kickback": "One-Legged_Cable_Kickback",
+    "hip-abduction": "Thigh_Abductor",
+    "hip-adduction": "Thigh_Adductor",
+    "smith-glute-bridge": "Barbell_Glute_Bridge",
+    "bulgarian-split-squat": "One_Leg_Barbell_Squat",
+    "walking-lunge": "Dumbbell_Lunges",
+    "reverse-lunge": "Dumbbell_Rear_Lunge",
+    "step-up": "Dumbbell_Step_Ups",
+    "standing-calf-raise": "Standing_Calf_Raises",
+    "seated-calf-raise": "Seated_Calf_Raise",
+    "smith-calf-raise": "Standing_Barbell_Calf_Raise",
+    "machine-crunch": "Ab_Crunch_Machine",
+    "hanging-leg-raise": "Hanging_Leg_Raise",
+    "cable-crunch": "Cable_Crunch",
+    "ab-wheel": "Ab_Roller",
 }
-FRAMES = ("relaxation", "tension")
+FRAMES = ("start", "end")
+PHOTO_SIZE = (720, 480)
+PHOTO_QUALITY = 80
 
 # Body highlighter slug -> MuscleGroup raw value, per side. Unlisted slugs go to the base
 # layer. The front trapezius and the lower back stay neutral: lighting them for every row
@@ -119,55 +148,51 @@ SVG_NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", SVG_NS)
 
 
-def main(everkinetic: Path, body_highlighter: Path) -> None:
+def main(free_exercise_db: Path, body_highlighter: Path) -> None:
     check_ids()
+    write_movements(free_exercise_db / "exercises")
     with tempfile.TemporaryDirectory() as tmp:
-        write_movements(everkinetic / "dist/svg", Path(tmp))
         write_body_map(body_highlighter / "assets", Path(tmp))
 
 
 def check_ids() -> None:
     known = set(re.findall(r'Exercise\(id: "([^"]+)"', LIBRARY.read_text()))
-    unknown = sorted(set(DRAWINGS) - known)
+    unknown = sorted(set(PHOTOS) - known)
     if unknown:
         sys.exit(f"Not in ExerciseLibrary: {', '.join(unknown)}")
 
 
-# MARK: Movement drawings
+# MARK: Movement photos
 
-def write_movements(svg_dir: Path, tmp: Path) -> None:
+def write_movements(photo_dir: Path) -> None:
     folder = reset_group("Movement")
-    for exercise_id, drawing_id in sorted(DRAWINGS.items()):
-        frames = [line_work(svg_dir / f"{drawing_id}-{frame}.svg") for frame in FRAMES]
-        # One viewBox for both frames, so the figure keeps its scale between them.
-        box = union(*(bounds(frame, tmp) for frame in frames))
-        for frame_name, root in zip(FRAMES, frames):
-            set_view_box(root, pad(box))
-            write_imageset(folder, f"{exercise_id}-{frame_name}", ET.tostring(root, encoding="unicode"))
-    print(f"{len(DRAWINGS)} movements, {len(set(DRAWINGS.values()))} drawings")
+    for exercise_id, photo_id in sorted(PHOTOS.items()):
+        for index, frame in enumerate(FRAMES):
+            photo = cropped(Image.open(photo_dir / photo_id / f"{index}.jpg").convert("RGB"))
+            name = f"{exercise_id}-{frame}"
+            imageset = folder / f"{name}.imageset"
+            imageset.mkdir()
+            photo.save(imageset / f"{name}.jpg", quality=PHOTO_QUALITY, optimize=True, progressive=True)
+            write_json(imageset / "Contents.json", {
+                "images": [{"filename": f"{name}.jpg", "idiom": "universal"}],
+                "info": {"author": "xcode", "version": 1},
+            })
+    print(f"{len(PHOTOS)} movements, {len(set(PHOTOS.values()))} photo pairs")
 
 
-def line_work(path: Path) -> ET.Element:
-    """The drawing with its light fills removed and the lines in black."""
-    root = ET.parse(path).getroot()
-    for parent in list(root.iter()):
-        for child in list(parent):
-            fill = child.get("fill")
-            if fill is None:
-                continue
-            if is_light(fill):
-                parent.remove(child)
-            else:
-                child.set("fill", "#000")
-    return root
-
-
-def is_light(color: str) -> bool:
-    hex_digits = color.lstrip("#")
-    if len(hex_digits) == 3:
-        hex_digits = "".join(c * 2 for c in hex_digits)
-    r, g, b = (int(hex_digits[i:i + 2], 16) for i in (0, 2, 4))
-    return (0.299 * r + 0.587 * g + 0.114 * b) > 128
+def cropped(photo: Image.Image) -> Image.Image:
+    """The centre of the photo at 3:2, scaled to PHOTO_SIZE."""
+    width, height = photo.size
+    target = PHOTO_SIZE[0] / PHOTO_SIZE[1]
+    if width / height > target:
+        crop_width = round(height * target)
+        left = (width - crop_width) // 2
+        photo = photo.crop((left, 0, left + crop_width, height))
+    else:
+        crop_height = round(width / target)
+        top = (height - crop_height) // 2
+        photo = photo.crop((0, top, width, top + crop_height))
+    return photo.resize(PHOTO_SIZE, Image.LANCZOS)
 
 
 # MARK: Muscle map
@@ -236,10 +261,6 @@ def bounds(root: ET.Element, tmp: Path) -> tuple[float, float, float, float]:
     subprocess.run(["rsvg-convert", str(svg), "-o", str(png)], check=True)
     left, top, right, bottom = Image.open(png).getchannel("A").getbbox()
     return (vx + left / scale, vy + top / scale, vx + right / scale, vy + bottom / scale)
-
-
-def union(*boxes):
-    return (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
 
 
 def pad(box):
