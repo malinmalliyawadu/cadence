@@ -8,11 +8,11 @@ struct CreditsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     credit(
-                        title: "Movement drawings",
-                        body: "Drawings from Everkinetic, created by Greg Priday, through the Everkinetic open data project. Cadence removes the white fill, crops them and draws the lines in its own colours. The changed drawings are shared under the same licence.",
+                        title: "Movement photos",
+                        body: "Photos from Free Exercise DB, which builds on the exercises.json project and is dedicated to the public domain. Cadence crops them to one size.",
                         links: [
-                            ("Everkinetic data", "https://github.com/everkinetic/data"),
-                            ("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+                            ("Free Exercise DB", "https://github.com/yuhonas/free-exercise-db"),
+                            ("Unlicense", "https://unlicense.org"),
                         ]
                     )
                     credit(

@@ -61,35 +61,58 @@ struct MuscleMap: View {
     }
 }
 
-/// An Everkinetic line drawing of the movement, relaxed then tensed, in the ink colour.
-/// Only movements whose drawing shows them as programmed have one.
-struct MovementDrawing: View {
+/// Free Exercise DB photos of the movement, the starting position and the other end of it,
+/// shown in turn. Only movements whose photos show them as programmed have them.
+struct MovementPhotos: View {
     let exercise: Exercise
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsEnd = false
+
+    static let frames = ["start", "end"]
+
     static func isAvailable(for exercise: Exercise) -> Bool {
-        UIImage(named: assetName(exercise.id, "tension")) != nil
+        UIImage(named: assetName(exercise.id, "end")) != nil
     }
 
     static func assetName(_ id: String, _ frame: String) -> String { "Movement/\(id)-\(frame)" }
 
     var body: some View {
-        HStack(spacing: 16) {
-            ForEach(["relaxation", "tension"], id: \.self) { frame in
-                Image(Self.assetName(exercise.id, frame))
-                    .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .foregroundStyle(Palette.ink.opacity(0.88))
-                    .frame(maxWidth: .infinity)
+        Group {
+            if reduceMotion {
+                // Side by side rather than moving.
+                HStack(spacing: 8) {
+                    ForEach(Self.frames, id: \.self) { photo($0) }
+                }
+            } else {
+                ZStack {
+                    photo("start")
+                    photo("end").opacity(showsEnd ? 1 : 0)
+                }
+                .task {
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1.4))
+                        withAnimation(.easeInOut(duration: 0.4)) { showsEnd.toggle() }
+                    }
+                }
             }
         }
         .accessibilityElement()
-        .accessibilityLabel("Drawing of \(exercise.name), relaxed and tensed")
+        .accessibilityLabel("Photos of \(exercise.name), start and finish")
+    }
+
+    private func photo(_ frame: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Image(Self.assetName(exercise.id, frame))
+            .resizable()
+            .aspectRatio(3 / 2, contentMode: .fit)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(Palette.hairline) }
     }
 }
 
-/// A square tile for lists of movements: the tensed drawing, or for movements without one,
-/// the half of the muscle map that holds the primary muscle, large enough to read.
+/// A square tile for lists of movements: the finishing photo, or for movements without
+/// photos, the half of the muscle map that holds the primary muscle, large enough to read.
 struct MovementThumbnail: View {
     let exercise: Exercise
     var size: CGFloat = 64
@@ -99,13 +122,11 @@ struct MovementThumbnail: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
         Group {
-            if MovementDrawing.isAvailable(for: exercise) {
-                Image(MovementDrawing.assetName(exercise.id, "tension"))
+            if MovementPhotos.isAvailable(for: exercise) {
+                Image(MovementPhotos.assetName(exercise.id, "end"))
                     .resizable()
-                    .renderingMode(.template)
-                    .scaledToFit()
-                    .foregroundStyle(Palette.ink.opacity(0.88))
-                    .padding(5)
+                    .scaledToFill()
+                    .frame(width: size, height: size)
             } else {
                 let showsLegs = Self.legs.contains(exercise.primary)
                 // 1.8 times the tile shows head to hips, or hips to feet.
@@ -123,15 +144,14 @@ struct MovementThumbnail: View {
     }
 }
 
-/// The drawing, when there is one, over the muscle map and its key.
+/// The photos, when there are some, over the muscle map and its key.
 struct MovementVisual: View {
     let exercise: Exercise
 
     var body: some View {
         VStack(spacing: 20) {
-            if MovementDrawing.isAvailable(for: exercise) {
-                MovementDrawing(exercise: exercise).frame(height: 150)
-                Rectangle().fill(Palette.hairline).frame(height: 1)
+            if MovementPhotos.isAvailable(for: exercise) {
+                MovementPhotos(exercise: exercise)
             }
             HStack(alignment: .center, spacing: 20) {
                 // The map takes the width its figures need at full height; the key gets the rest.
