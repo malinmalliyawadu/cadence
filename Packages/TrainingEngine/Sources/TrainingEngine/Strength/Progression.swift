@@ -130,10 +130,14 @@ public enum Progression {
         if readiness < 0.97 {
             decision = .readinessCut
             rationale = "Training load is running high this week, so this is \(Int((1 - readiness) * 100))% lighter than you have earned. Keep the RIR honest."
-        } else if lastMeanRIR >= Double(last.targetRIR) + 1 || (hitTopOfRange && lastMeanRIR >= Double(last.targetRIR)) {
+        } else if lastMeanRIR >= Double(last.targetRIR) + 1 {
             next = max(next, roundToIncrement(lastWeight + increment, increment: increment))
             decision = .increase
             rationale = "Last time averaged \(formatRIR(lastMeanRIR)) RIR against a target of \(last.targetRIR). Adding load."
+        } else if hitTopOfRange && lastMeanRIR >= Double(last.targetRIR) {
+            next = max(next, roundToIncrement(lastWeight + increment, increment: increment))
+            decision = .increase
+            rationale = "Every set reached \(last.targetReps.upperBound) reps with \(formatRIR(lastMeanRIR)) in reserve. Adding load."
         } else if lastMeanRIR <= Double(last.targetRIR) - 1 {
             next = min(next, lastWeight)
             decision = .reduce

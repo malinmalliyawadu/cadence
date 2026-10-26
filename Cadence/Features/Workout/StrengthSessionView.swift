@@ -9,7 +9,8 @@ struct StrengthSessionView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(\.dismiss) private var dismiss
-    @State private var expanded: PersistentIdentifier?
+    /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
+    @State private var expanded: Int?
     @State private var confirmFinish = false
 
     var body: some View {
@@ -23,7 +24,7 @@ struct StrengthSessionView: View {
                             ForEach(session.orderedExercises) { exercise in
                                 ExerciseCard(
                                     exercise: exercise,
-                                    isExpanded: expanded == exercise.persistentModelID,
+                                    isExpanded: expanded == exercise.order,
                                     isEditable: session.status != .completed,
                                     onToggle: { toggle(exercise) },
                                     onSwap: { coordinator.swap(exercise, in: context) }
@@ -62,7 +63,10 @@ struct StrengthSessionView: View {
             Text("Unlogged sets are left out of progression. You can reopen the session later.")
         }
         .onAppear {
-            if expanded == nil { expanded = session.orderedExercises.first { !$0.isComplete }?.persistentModelID }
+            if expanded == nil { expanded = session.orderedExercises.first { !$0.isComplete }?.order }
+        }
+        .onChange(of: session.focusRaw) { _, _ in
+            expanded = 0
         }
     }
 
@@ -76,6 +80,12 @@ struct StrengthSessionView: View {
                 Spacer()
                 Text(Format.minutes(session.actualMinutes ?? session.plannedMinutes))
                     .font(.numeralSmall).foregroundStyle(Palette.inkSecondary)
+            }
+            if session.status == .planned, session.loggedSetCount == 0 {
+                HStack {
+                    ChangeSessionMenu(session: session)
+                    Spacer()
+                }
             }
             ProgressView(value: Double(session.loggedSetCount), total: Double(max(1, session.plannedSetCount)))
                 .tint(Palette.ember)
@@ -120,7 +130,7 @@ struct StrengthSessionView: View {
 
     private func toggle(_ exercise: PlannedExercise) {
         withAnimation(.snappy(duration: 0.3)) {
-            expanded = expanded == exercise.persistentModelID ? nil : exercise.persistentModelID
+            expanded = expanded == exercise.order ? nil : exercise.order
         }
     }
 

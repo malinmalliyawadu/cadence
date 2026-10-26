@@ -251,13 +251,7 @@ public enum WeekPlanner {
         return sessions
     }
 
-    private static func defaultMinutes(for kind: RunKind) -> Double {
-        switch kind {
-        case .easy: 40
-        case .long: 75
-        case .quality: 40
-        }
-    }
+    private static func defaultMinutes(for kind: RunKind) -> Double { kind.defaultMinutes }
 
     private static func minuteBounds(for kind: RunKind) -> ClosedRange<Double> {
         switch kind {

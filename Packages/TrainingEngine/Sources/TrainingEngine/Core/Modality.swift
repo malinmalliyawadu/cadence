@@ -53,6 +53,15 @@ public enum RunKind: String, Codable, Sendable, CaseIterable, Hashable {
 
     /// Whether the run counts as "hard" for spacing against lower-body strength days.
     public var isHard: Bool { self != .easy }
+
+    /// Duration used when there is no load budget to size the run from.
+    public var defaultMinutes: Double {
+        switch self {
+        case .easy: 40
+        case .long: 75
+        case .quality: 40
+        }
+    }
 }
 
 /// Rounds a weight down to the nearest loadable increment.

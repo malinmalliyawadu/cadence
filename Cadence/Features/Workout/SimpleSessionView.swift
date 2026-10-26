@@ -24,6 +24,9 @@ struct SimpleSessionView: View {
                         DisplayText(text: session.title, size: 44)
                         Text(guidance).font(.system(size: 17, weight: .medium)).foregroundStyle(Palette.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
+                        if session.status == .planned {
+                            ChangeSessionMenu(session: session).padding(.top, 4)
+                        }
                     }
                     .padding(.top, 8)
 
@@ -82,6 +85,10 @@ struct SimpleSessionView: View {
                     Button("Reopen", systemImage: "arrow.uturn.backward") { coordinator.reopen(session, in: context) }
                 }
             }
+        }
+        .onChange(of: session.runKindRaw) { _, _ in
+            minutes = session.plannedMinutes
+            rpe = session.runKind?.defaultRPE ?? rpe
         }
         .onAppear {
             minutes = session.actualMinutes ?? session.plannedMinutes

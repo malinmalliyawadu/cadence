@@ -261,6 +261,55 @@ final class PlanCoordinator {
         try? context.save()
     }
 
+    /// Rebuilds a planned strength session for a different half or focus. Only allowed
+    /// before anything is logged, so history stays truthful.
+    func regenerate(_ session: TrainingSession, half: BodyHalf, focus: FocusArea, in context: ModelContext) {
+        guard session.modality == .strength, session.status == .planned, session.loggedSetCount == 0, focus.half == half else { return }
+        let profile = profile(in: context)
+        let snapshot = LoadAnalysis.snapshot(entries: loadEntries(in: context), planningOn: session.date, calendar: calendar)
+        let readiness = Readiness.from(snapshot)
+        let recent = Set(lastCompletedStrength(half: half, in: context)?.exercises.map(\.exerciseID) ?? [])
+        let generated = WorkoutGenerator.generate(StrengthSessionRequest(
+            half: half,
+            focus: focus,
+            availableEquipment: profile.equipment,
+            recentExerciseIDs: recent,
+            history: history(in: context),
+            readiness: readiness.loadMultiplier,
+            setReduction: readiness.setReduction,
+            variationSeed: Int(session.date.timeIntervalSince1970 / 86_400),
+            bodyweightKg: profile.bodyweightKg
+        ))
+        for exercise in session.exercises { context.delete(exercise) }
+        session.exercises = generated.prescriptions.enumerated().map { PlannedExercise(prescription: $1, order: $0) }
+        session.half = half
+        session.focus = focus
+        session.plannedMinutes = generated.estimatedMinutes.rounded()
+        try? context.save()
+    }
+
+    /// Exchanges the days of two planned sessions. Everything else about them stays.
+    func swapDays(_ a: TrainingSession, _ b: TrainingSession, in context: ModelContext) {
+        guard a.status == .planned, b.status == .planned, a != b else { return }
+        let dateA = a.date
+        a.date = b.date
+        b.date = dateA
+        try? context.save()
+    }
+
+    /// Changes a planned run's type. Minutes follow the type's default unless the athlete already shortened it.
+    func changeRunKind(_ session: TrainingSession, to kind: RunKind, in context: ModelContext) {
+        guard session.modality == .running, session.status == .planned else { return }
+        session.runKind = kind
+        session.plannedMinutes = kind.defaultMinutes
+        try? context.save()
+    }
+
+    /// Other planned sessions in the same week, for swapping.
+    func swapCandidates(for session: TrainingSession, in context: ModelContext) -> [TrainingSession] {
+        sessions(weekStart: session.weekStart, in: context).filter { $0 != session && $0.status == .planned && !calendar.isDate($0.date, inSameDayAs: session.date) }
+    }
+
     /// Swaps a movement for another of the same role that trains the same primary muscle.
     func swap(_ exercise: PlannedExercise, in context: ModelContext) {
         guard let current = exercise.exercise, let session = exercise.session else { return }
