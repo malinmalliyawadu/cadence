@@ -123,7 +123,9 @@ struct SettingsView: View {
                     if let date = profile.bodyweightFromHealthAt {
                         Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
                     } else {
-                        Text("Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
+                        Text(health.isEnabled
+                             ? "Used to progress dips, pull-ups and chin-ups."
+                             : "Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
                     }
                 }
 
@@ -140,7 +142,9 @@ struct SettingsView: View {
                     if let date = profile.heartRateFromHealthAt {
                         Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
                     } else {
-                        Text("Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
+                        Text(health.isEnabled
+                             ? "Sets the heart-rate zones for runs. These fill in from your watch once Apple Health has heart-rate readings."
+                             : "Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
                     }
                 }
 
@@ -182,7 +186,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text("Runs and hot yoga logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Syncs whenever Cadence opens.")
+                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health unless your watch recorded them. Syncs whenever Cadence opens.")
                 }
 
                 Section {

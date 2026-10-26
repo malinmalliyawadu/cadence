@@ -99,7 +99,7 @@ final class TrainingSession {
         switch modality {
         case .strength:
             if let focus { return "\(focus.displayName) focus" }
-            return "Full session"
+            return exercises.isEmpty ? "From Apple Health" : "Full session"
         case .running:
             if let distanceKm, status == .completed { return String(format: "%.1f km", distanceKm) }
             return "\(Int(plannedMinutes)) min"

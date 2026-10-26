@@ -4,10 +4,11 @@ import Observation
 import SwiftData
 import TrainingEngine
 
-/// Reads runs and yoga from Apple Health and completes Cadence sessions from them.
-/// Duration and distance come from the workout; effort comes from the Workout Effort
-/// Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart
-/// rate gives each run's average and the max and resting figures that set the run zones.
+/// Reads runs, yoga and strength workouts from Apple Health and completes Cadence sessions
+/// from them, and saves finished strength sessions back as workouts. Duration and distance come
+/// from the workout; effort comes from the Workout Effort Score the athlete rates in Fitness
+/// (1 to 10), falling back to the estimated score. Heart rate gives each run's average and the
+/// max and resting figures that set the run zones.
 @MainActor
 @Observable
 final class HealthKitService {
@@ -20,6 +21,8 @@ final class HealthKitService {
         let effort: Double?
         let effortIsEstimated: Bool
         let averageHeartRate: Double?
+        /// Saved by Cadence from a finished strength session rather than recorded by a watch.
+        let isOwn: Bool
 
         var minutes: Double { end.timeIntervalSince(start) / 60 }
     }
@@ -37,6 +40,7 @@ final class HealthKitService {
     private var effortType: HKQuantityType { HKQuantityType(.workoutEffortScore) }
     private var estimatedEffortType: HKQuantityType { HKQuantityType(.estimatedWorkoutEffortScore) }
     private var distanceType: HKQuantityType { HKQuantityType(.distanceWalkingRunning) }
+    private var activeEnergyType: HKQuantityType { HKQuantityType(.activeEnergyBurned) }
     private var bodyMassType: HKQuantityType { HKQuantityType(.bodyMass) }
     private var heartRateType: HKQuantityType { HKQuantityType(.heartRate) }
     private var restingHeartRateType: HKQuantityType { HKQuantityType(.restingHeartRate) }
@@ -45,6 +49,8 @@ final class HealthKitService {
     private var readTypes: Set<HKObjectType> {
         [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, HKCharacteristicType(.dateOfBirth)]
     }
+
+    private var shareTypes: Set<HKSampleType> { [workoutType, activeEnergyType] }
 
     var isAvailable: Bool { state != .unavailable }
 
@@ -58,7 +64,7 @@ final class HealthKitService {
         guard HKHealthStore.isHealthDataAvailable() else { state = .unavailable; return }
         state = .requesting
         do {
-            try await store.requestAuthorization(toShare: [], read: readTypes)
+            try await store.requestAuthorization(toShare: shareTypes, read: readTypes)
             // Read permission is never reported directly; a request that completes is as good as it gets.
             state = .ready
             isEnabled = true
@@ -75,6 +81,8 @@ final class HealthKitService {
         let activities = NSCompoundPredicate(orPredicateWithSubpredicates: [
             HKQuery.predicateForWorkouts(with: .running),
             HKQuery.predicateForWorkouts(with: .yoga),
+            HKQuery.predicateForWorkouts(with: .traditionalStrengthTraining),
+            HKQuery.predicateForWorkouts(with: .functionalStrengthTraining),
         ])
         let combined = NSCompoundPredicate(andPredicateWithSubpredicates: [predicate, activities])
         let descriptor = HKSampleQueryDescriptor(predicates: [.workout(combined)], sortDescriptors: [SortDescriptor(\.startDate)])
@@ -82,13 +90,27 @@ final class HealthKitService {
 
         var results: [Workout] = []
         for workout in workouts {
-            let modality: Modality = workout.workoutActivityType == .yoga ? .yoga : .running
+            let modality: Modality = switch workout.workoutActivityType {
+            case .running: .running
+            case .yoga: .yoga
+            default: .strength
+            }
             let distance = workout.statistics(for: distanceType)?.sumQuantity()?.doubleValue(for: .meterUnit(with: .kilo))
             let (effort, estimated) = try await effortScore(for: workout)
             let heartRate = workout.statistics(for: heartRateType)?.averageQuantity()?.doubleValue(for: beatsPerMinute)
-            results.append(Workout(id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance, effort: effort, effortIsEstimated: estimated, averageHeartRate: heartRate))
+            results.append(Workout(id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance, effort: effort, effortIsEstimated: estimated, averageHeartRate: heartRate, isOwn: isOwn(workout)))
         }
         return results
+    }
+
+    private func isOwn(_ workout: HKWorkout) -> Bool {
+        workout.sourceRevision.source.bundleIdentifier == HKSource.default().bundleIdentifier
+    }
+
+    private func storedWorkout(id: String) async throws -> HKWorkout? {
+        guard let uuid = UUID(uuidString: id) else { return nil }
+        let descriptor = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: uuid))], sortDescriptors: [], limit: 1)
+        return try await descriptor.result(for: store).first
     }
 
     private func effortScore(for workout: HKWorkout) async throws -> (Double?, Bool) {
@@ -133,6 +155,89 @@ final class HealthKitService {
         return (HeartRateZones.estimatedMaximum(dailyPeaks: dailyPeaks, age: age), median)
     }
 
+    // MARK: Writing
+
+    /// Saves a finished strength session to Apple Health as a Traditional Strength Training
+    /// workout with an estimate of the active energy, so it shows in Fitness and counts toward
+    /// the Move ring. A watch recording of the same day's lifting is linked instead, and
+    /// finishing a reopened session replaces what Cadence saved the first time.
+    func record(_ session: TrainingSession, in context: ModelContext, coordinator: PlanCoordinator) async {
+        guard isEnabled, session.modality == .strength, session.status == .completed,
+              store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
+        let calendar = coordinator.calendar
+        do {
+            if let id = session.healthWorkoutID, let linked = try await storedWorkout(id: id), isOwn(linked) {
+                try await delete(linked)
+                session.healthWorkoutID = nil
+            }
+            // The watch recorded this session already, or ended its workout before it was finished here.
+            let recorded = try await workouts(since: calendar.startOfDay(for: session.date)).filter {
+                $0.modality == .strength && !$0.isOwn && calendar.isDate($0.start, inSameDayAs: session.date)
+            }
+            let watch = recorded.first { $0.id.uuidString == session.healthWorkoutID } ?? recorded.first { workout in
+                let id = workout.id.uuidString
+                return ((try? context.fetchCount(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.healthWorkoutID == id }))) ?? 0) == 0
+            }
+            if let watch {
+                session.healthWorkoutID = watch.id.uuidString
+                apply(watch, to: session)
+                try context.save()
+                return
+            }
+
+            let logged = session.exercises.flatMap { exercise in
+                exercise.completedSets.compactMap { set in set.completedAt.map { (exercise: exercise, set: set, at: $0) } }
+            }
+            guard let first = logged.min(by: { $0.at < $1.at }),
+                  let interval = StrengthWorkoutRecord.interval(
+                      setTimes: logged.map(\.at),
+                      firstSetSeconds: Double(first.set.reps) * (first.exercise.exercise?.secondsPerRep ?? 3),
+                      plannedMinutes: session.plannedMinutes
+                  ) else { return }
+            let configuration = HKWorkoutConfiguration()
+            configuration.activityType = .traditionalStrengthTraining
+            configuration.locationType = .indoor
+            let builder = HKWorkoutBuilder(healthStore: store, configuration: configuration, device: .local())
+            try await builder.beginCollection(at: interval.start)
+            if store.authorizationStatus(for: activeEnergyType) == .sharingAuthorized {
+                let kilocalories = StrengthWorkoutRecord.activeKilocalories(
+                    bodyweightKg: coordinator.profile(in: context).bodyweightKg,
+                    minutes: interval.duration / 60,
+                    rpe: session.rpe ?? TrainingLoad.strengthSessionRPE(meanRIR: session.meanTargetRIR)
+                )
+                let energy = HKQuantitySample(type: activeEnergyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kilocalories), start: interval.start, end: interval.end)
+                try await builder.addSamples([energy])
+            }
+            try await builder.addMetadata([HKMetadataKeyExternalUUID: session.id.uuidString])
+            try await builder.endCollection(at: interval.end)
+            guard let saved = try await builder.finishWorkout() else { return }
+            session.healthWorkoutID = saved.uuid.uuidString
+            try context.save()
+        } catch {
+            lastMessage = "Could not save the session to Apple Health: \(error.localizedDescription)"
+        }
+    }
+
+    /// Takes back the workout Cadence saved when its session is reopened. A watch recording stays linked.
+    func withdraw(_ session: TrainingSession, in context: ModelContext) async {
+        guard let id = session.healthWorkoutID else { return }
+        do {
+            guard let linked = try await storedWorkout(id: id), isOwn(linked) else { return }
+            try await delete(linked)
+            session.healthWorkoutID = nil
+            try context.save()
+        } catch {
+            lastMessage = "Could not remove the session from Apple Health: \(error.localizedDescription)"
+        }
+    }
+
+    private func delete(_ workout: HKWorkout) async throws {
+        if store.authorizationStatus(for: activeEnergyType) == .sharingAuthorized {
+            _ = try await store.deleteObjects(of: activeEnergyType, predicate: HKQuery.predicateForObjects(from: workout))
+        }
+        try await store.delete(workout)
+    }
+
     // MARK: Syncing
 
     struct SyncSummary: Equatable {
@@ -151,18 +256,21 @@ final class HealthKitService {
         }
     }
 
-    /// Pulls the last `days` of runs and yoga and reconciles them with the store:
+    /// Pulls the last `days` of runs, yoga and strength workouts and reconciles them with the store:
     /// - a workout already synced updates its session,
-    /// - a planned session of the same modality on that day is completed from the workout,
+    /// - a planned session of the same modality on that day is completed from the workout, except
+    ///   a strength session with sets logged, which is still being logged and only takes the duration,
     /// - a completed session on that day without Health data (an import, a manual log) is enriched,
     /// - otherwise a new completed session is created.
+    /// Workouts Cadence saved itself are skipped. A watch recording of a session Cadence already
+    /// saved replaces Cadence's copy, so the session is not in Health twice.
     @discardableResult
     func sync(days: Int = 90, in context: ModelContext, coordinator: PlanCoordinator) async -> SyncSummary {
         guard state == .ready || (isEnabled && state == .notRequested) else { return SyncSummary() }
         if state == .notRequested { state = .ready }
-        // Heart rate arrived after the first permission request; ask once for anything new.
-        if (try? await store.statusForAuthorizationRequest(toShare: [], read: readTypes)) == .shouldRequest {
-            try? await store.requestAuthorization(toShare: [], read: readTypes)
+        // Heart rate and saving strength workouts arrived after the first permission request; ask once for anything new.
+        if (try? await store.statusForAuthorizationRequest(toShare: shareTypes, read: readTypes)) == .shouldRequest {
+            try? await store.requestAuthorization(toShare: shareTypes, read: readTypes)
         }
         let calendar = coordinator.calendar
         let since = calendar.date(byAdding: .day, value: -days, to: .now) ?? .now
@@ -183,22 +291,36 @@ final class HealthKitService {
                 if let resting = figures.resting { profile.restingHeartRate = resting }
                 profile.heartRateFromHealthAt = .now
             }
-            let workouts = try await workouts(since: since)
+            let recorded = try await workouts(since: since).filter { !$0.isOwn }
+            let recordedIDs = Set(recorded.map(\.id.uuidString))
             let sessions = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.date >= since }))) ?? []
-            for workout in workouts {
+            var replaced: [String] = []
+            for workout in recorded {
                 let id = workout.id.uuidString
                 if let existing = sessions.first(where: { $0.healthWorkoutID == id }) {
                     if apply(workout, to: existing) { summary.updated += 1 }
                     continue
                 }
-                let sameDay = sessions.filter { $0.modality == workout.modality && calendar.isDate($0.date, inSameDayAs: workout.start) && $0.healthWorkoutID == nil && $0.status != .skipped }
+                // Free to match: no workout yet, or only one Cadence saved, or one since deleted from Health.
+                let sameDay = sessions.filter {
+                    $0.modality == workout.modality && calendar.isDate($0.date, inSameDayAs: workout.start)
+                        && !($0.healthWorkoutID.map(recordedIDs.contains) ?? false) && $0.status != .skipped
+                }
+                func link(_ session: TrainingSession) {
+                    if let previous = session.healthWorkoutID { replaced.append(previous) }
+                    session.healthWorkoutID = id
+                }
                 if let planned = sameDay.first(where: { $0.status == .planned }) {
-                    planned.healthWorkoutID = id
+                    link(planned)
                     apply(workout, to: planned)
-                    coordinator.complete(planned, minutes: workout.minutes.rounded(), rpe: planned.rpe, distanceKm: planned.distanceKm, in: context)
-                    summary.completed += 1
+                    if planned.modality == .strength, planned.loggedSetCount > 0 {
+                        summary.updated += 1
+                    } else {
+                        coordinator.complete(planned, at: workout.end, minutes: workout.minutes.rounded(), rpe: planned.rpe, distanceKm: planned.distanceKm, in: context)
+                        summary.completed += 1
+                    }
                 } else if let done = sameDay.first(where: { $0.status == .completed }) {
-                    done.healthWorkoutID = id
+                    link(done)
                     if apply(workout, to: done) { summary.updated += 1 }
                 } else {
                     let minutes = workout.minutes.rounded()
@@ -216,6 +338,9 @@ final class HealthKitService {
                 }
             }
             try context.save()
+            for id in replaced {
+                if let workout = try await storedWorkout(id: id), isOwn(workout) { try await delete(workout) }
+            }
             lastSync = .now
             lastMessage = summary.message
         } catch {
@@ -234,7 +359,9 @@ final class HealthKitService {
             let rounded = (km * 10).rounded() / 10
             if session.distanceKm != rounded { session.distanceKm = rounded; changed = true }
         }
-        if let effort = workout.effort, session.rpe != effort { session.rpe = effort; changed = true }
+        // Logged reps in reserve say more about a lifting session than a whole-workout score.
+        let effortApplies = !(session.modality == .strength && session.loggedSetCount > 0)
+        if let effort = workout.effort, effortApplies, session.rpe != effort { session.rpe = effort; changed = true }
         if let heartRate = workout.averageHeartRate, session.averageHeartRate != heartRate.rounded() { session.averageHeartRate = heartRate.rounded(); changed = true }
         return changed
     }

@@ -231,16 +231,19 @@ final class PlanCoordinator {
 
     // MARK: Logging
 
-    /// Marks a session done. Strength sessions derive their RPE from the logged RIR and
-    /// advance the focus rotation so the next plan picks up where this one left off.
-    func complete(_ session: TrainingSession, minutes: Double? = nil, rpe: Double? = nil, distanceKm: Double? = nil, in context: ModelContext) {
+    /// Marks a session done. Strength sessions derive their RPE from the logged RIR, or take the
+    /// given effort when nothing was logged (a workout recorded only on the watch), and advance
+    /// the focus rotation so the next plan picks up where this one left off. Minutes already
+    /// taken from an Apple Health workout are kept.
+    func complete(_ session: TrainingSession, at date: Date = .now, minutes: Double? = nil, rpe: Double? = nil, distanceKm: Double? = nil, in context: ModelContext) {
         session.status = .completed
-        session.completedAt = .now
-        session.actualMinutes = minutes ?? session.plannedMinutes
+        session.completedAt = date
+        session.actualMinutes = minutes ?? session.actualMinutes ?? session.plannedMinutes
         if let rpe { session.rpe = rpe }
         if let distanceKm { session.distanceKm = distanceKm }
         if session.modality == .strength {
-            session.rpe = TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
+            let derived = TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
+            session.rpe = session.loggedSetCount > 0 ? derived : rpe ?? derived
             let profile = profile(in: context)
             if let focus = session.focus {
                 if focus.half == .upper { profile.nextUpperFocus = focus.next } else { profile.nextLowerFocus = focus.next }
