@@ -84,6 +84,18 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    ForEach(BodyHalf.allCases, id: \.self) { half in
+                        NavigationLink { AlwaysIncludedView(half: half) } label: {
+                            LabeledContent(half.displayName, value: alwaysIncludedSummary(profile.alwaysIncluded(for: half)))
+                        }
+                    }
+                } header: {
+                    Text("In every session")
+                } footer: {
+                    Text("Added on top of the six movements the planner picks. Upcoming sessions with nothing logged change too.")
+                }
+
                 Section("Equipment") {
                     ForEach(Equipment.allCases, id: \.self) { item in
                         Toggle(item.rawValue.capitalized, isOn: Binding(
@@ -128,7 +140,9 @@ struct SettingsView: View {
                     if let date = profile.bodyweightFromHealthAt {
                         Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
                     } else {
-                        Text("Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
+                        Text(health.isEnabled
+                             ? "Used to progress dips, pull-ups and chin-ups."
+                             : "Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
                     }
                 }
 
@@ -145,7 +159,9 @@ struct SettingsView: View {
                     if let date = profile.heartRateFromHealthAt {
                         Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
                     } else {
-                        Text("Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
+                        Text(health.isEnabled
+                             ? "Sets the heart-rate zones for runs. These fill in from your watch once Apple Health has heart-rate readings."
+                             : "Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
                     }
                 }
 
@@ -187,7 +203,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text("Runs and hot yoga logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Syncs whenever Cadence opens.")
+                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health unless your watch recorded them. Syncs whenever Cadence opens.")
                 }
 
                 Section {
@@ -251,6 +267,15 @@ struct SettingsView: View {
                 importMessage = await ImportService.importPicked(result, replacingExisting: replaceOnImport, in: context, coordinator: coordinator)
                 importing = false
             }
+        }
+    }
+
+    private func alwaysIncludedSummary(_ ids: [String]) -> String {
+        let names = ids.compactMap { ExerciseLibrary.exercise(id: $0)?.name }
+        switch names.count {
+        case 0: return "None"
+        case 1: return names[0]
+        default: return "\(names.count) movements"
         }
     }
 }

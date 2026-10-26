@@ -32,6 +32,10 @@ final class AthleteProfile {
     var nextUpperFocusRaw: String
     var nextLowerFocusRaw: String
 
+    // Movements added to every upper or lower session, as exercise IDs in the order they were added
+    var alwaysIncludedUpper: [String] = []
+    var alwaysIncludedLower: [String] = []
+
     // Gym
     var equipmentRaw: [String]
 
@@ -70,6 +74,10 @@ final class AthleteProfile {
     var nextLowerFocus: FocusArea {
         get { FocusArea(rawValue: nextLowerFocusRaw) ?? .quads }
         set { nextLowerFocusRaw = newValue.rawValue }
+    }
+
+    func alwaysIncluded(for half: BodyHalf) -> [String] {
+        half == .upper ? alwaysIncludedUpper : alwaysIncludedLower
     }
 
     var equipment: Set<Equipment> {

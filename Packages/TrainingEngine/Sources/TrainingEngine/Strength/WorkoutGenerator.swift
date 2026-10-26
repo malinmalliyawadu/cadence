@@ -24,6 +24,9 @@ public struct StrengthSessionRequest: Sendable {
     public var variationSeed: Int
     /// Athlete bodyweight, used to progress dips, pull-ups and chin-ups.
     public var bodyweightKg: Double
+    /// Exercise IDs the athlete wants in every session of this half, whatever the focus.
+    /// They come on top of the six slots and are never picked for one. IDs from the other half are ignored.
+    public var alwaysIncluded: [String]
 
     public init(
         half: BodyHalf,
@@ -34,7 +37,8 @@ public struct StrengthSessionRequest: Sendable {
         readiness: Double = 1.0,
         setReduction: Int = 0,
         variationSeed: Int = 0,
-        bodyweightKg: Double = 0
+        bodyweightKg: Double = 0,
+        alwaysIncluded: [String] = []
     ) {
         precondition(focus.half == half, "Focus \(focus) does not belong to the \(half) half")
         self.half = half
@@ -46,6 +50,7 @@ public struct StrengthSessionRequest: Sendable {
         self.setReduction = setReduction
         self.variationSeed = variationSeed
         self.bodyweightKg = bodyweightKg
+        self.alwaysIncluded = alwaysIncluded
     }
 }
 
@@ -74,7 +79,8 @@ public struct GeneratedStrengthSession: Sendable, Hashable {
 /// Each session is six slots. The focus gets the opener, a second compound or heavy
 /// accessory, and the first isolation slot, each with an extra set. The rest of the
 /// half is covered by an antagonist compound and a balancing accessory so nothing is
-/// neglected across the week. Selection is deterministic for a given request.
+/// neglected across the week. Movements the athlete always wants are added on top, in
+/// role order. Selection is deterministic for a given request.
 public enum WorkoutGenerator {
     private struct Slot {
         enum Target { case focus, antagonist, balance, finisher }
@@ -111,14 +117,15 @@ public enum WorkoutGenerator {
     ]
 
     public static func generate(_ request: StrengthSessionRequest) -> GeneratedStrengthSession {
+        let added = alwaysIncluded(in: request)
         let pool = ExerciseLibrary.exercises(for: request.half)
-            .filter { request.availableEquipment.contains($0.equipment) }
+            .filter { request.availableEquipment.contains($0.equipment) && !added.contains($0) }
 
         var chosen: [Exercise] = []
         var prescriptions: [ExercisePrescription] = []
 
         for (index, slot) in slots.enumerated() {
-            guard let exercise = pick(slot: slot, index: index, from: pool, chosen: chosen, request: request) else { continue }
+            guard let exercise = pick(slot: slot, index: index, from: pool, chosen: chosen, added: added, request: request) else { continue }
             chosen.append(exercise)
 
             let isFocus = slot.target == .focus
@@ -144,14 +151,70 @@ public enum WorkoutGenerator {
             ))
         }
 
+        for exercise in added {
+            let index = insertionIndex(for: exercise.role, in: prescriptions.map(\.exercise.role))
+            prescriptions.insert(prescription(adding: exercise, for: request), at: index)
+        }
+
         return GeneratedStrengthSession(half: request.half, focus: request.focus, prescriptions: prescriptions)
+    }
+
+    // MARK: Always included
+
+    /// The scheme for a movement added on top of the slots: what its role would get in a slot of its own.
+    public static func addedScheme(for role: ExerciseRole) -> SetScheme {
+        switch role {
+        case .compound: compoundScheme
+        case .accessory: accessoryScheme
+        case .isolation: isolationScheme
+        }
+    }
+
+    /// The prescription for an always-included movement, progressed from its own history like any slot.
+    public static func prescription(adding exercise: Exercise, for request: StrengthSessionRequest) -> ExercisePrescription {
+        let scheme = addedScheme(for: exercise.role)
+        let sets = exercise.role == .isolation ? scheme.sets : max(2, scheme.sets - request.setReduction)
+        let progression = Progression.nextLoad(
+            for: exercise,
+            history: request.history,
+            repRange: scheme.reps,
+            targetRIR: scheme.rir,
+            readiness: request.readiness,
+            bodyweightKg: request.bodyweightKg
+        )
+        return ExercisePrescription(
+            exercise: exercise,
+            sets: sets,
+            repRange: scheme.reps,
+            targetRIR: scheme.rir,
+            weightKg: progression.weightKg,
+            isFocus: false,
+            rationale: progression.rationale
+        )
+    }
+
+    /// Where a movement of `role` goes among movements of `roles`: before the first lighter one,
+    /// so an added compound is not left until the end and an added isolation closes the session.
+    public static func insertionIndex(for role: ExerciseRole, in roles: [ExerciseRole]) -> Int {
+        let weight = ExerciseRole.allCases.firstIndex(of: role) ?? 0
+        return roles.firstIndex { (ExerciseRole.allCases.firstIndex(of: $0) ?? 0) > weight } ?? roles.count
+    }
+
+    private static func alwaysIncluded(in request: StrengthSessionRequest) -> [Exercise] {
+        var seen: Set<String> = []
+        return request.alwaysIncluded
+            .filter { seen.insert($0).inserted }
+            .compactMap(ExerciseLibrary.exercise(id:))
+            .filter { $0.half == request.half }
     }
 
     // MARK: Selection
 
-    private static func pick(slot: Slot, index: Int, from pool: [Exercise], chosen: [Exercise], request: StrengthSessionRequest) -> Exercise? {
+    private static func pick(slot: Slot, index: Int, from pool: [Exercise], chosen: [Exercise], added: [Exercise], request: StrengthSessionRequest) -> Exercise? {
         let focusMuscles = request.focus.muscles
         let coveredMuscles = Set(chosen.flatMap(\.muscles))
+        // Muscles an always-included movement already trains, so the balance and finisher slots look elsewhere.
+        let addedMuscles = Set(added.map(\.primary))
         let usedPatterns = Set(chosen.map(\.pattern))
         let opener = chosen.first
 
@@ -165,12 +228,13 @@ public enum WorkoutGenerator {
                 return antagonistPatterns(of: opener.pattern).contains(candidate.pattern) && !focusMuscles.contains(candidate.primary)
             case .balance:
                 let mainGroups = mainGroups(for: request.half)
-                let uncovered = mainGroups.subtracting(coveredMuscles).subtracting(focusMuscles)
+                let uncovered = mainGroups.subtracting(coveredMuscles).subtracting(focusMuscles).subtracting(addedMuscles)
                 if uncovered.isEmpty { return !focusMuscles.contains(candidate.primary) }
                 return uncovered.contains(candidate.primary)
             case .finisher:
                 let finisherGroups = finisherGroups(for: request.half, focus: request.focus)
-                return finisherGroups.contains(candidate.primary) && !focusMuscles.contains(candidate.primary)
+                let open = finisherGroups.subtracting(addedMuscles)
+                return (open.isEmpty ? finisherGroups : open).contains(candidate.primary) && !focusMuscles.contains(candidate.primary)
             }
         }
 

@@ -7,10 +7,12 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  66 tests in under a second. Everything that decides what to train lives here, never in views.
+  71 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
-  - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots.
+  - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
+    movements the athlete always wants in an upper or lower session (Settings, In every session).
   - `Strength/SwapRanking.swift` - orders replacements for a movement: same muscle and pattern, then the focus, then familiarity.
+  - `Strength/StrengthWorkoutRecord.swift` - a finished session as a Health workout: span from the logged sets, active energy from MET by session RPE.
   - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
   - `Load/TrainingLoad.swift` - session-RPE load, EWMA acute:chronic ratio, monotony, strain, readiness.
   - `Planning/WeekPlanner.swift` - weekly load budget, then exhaustive scored search over day assignments.
@@ -19,11 +21,13 @@ and the weather, generates every strength session, and progresses load from reps
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
-  - `Services/HealthKitService.swift` - runs and yoga from Apple Health, effort from Workout Effort Score.
+  - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score;
+    saves finished strength sessions back as Traditional Strength Training workouts.
   - `Services/ImportService.swift` - CSV import, from Settings (Import), the empty week, and the DEBUG `-importCSV <path>`
     launch argument. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
-    left alone, and planned, skipped or setless sessions on an imported day are replaced. "Replace existing history"
-    (`-importReplace` at launch) wipes every session first. Apple Health is the source for runs, yoga and bodyweight.
+    left alone, and planned, skipped or setless sessions on an imported day are replaced (a watch workout linked to a
+    replaced lift moves to the import). "Replace existing history" (`-importReplace` at launch) wipes every session
+    first. Imports are never written to Health. Apple Health is the source for runs, yoga and bodyweight.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
   - `Design/MovementArt.swift` - muscle map, movement drawings and list thumbnails. The `Movement` and `BodyMap`
@@ -42,14 +46,14 @@ cd Packages/TrainingEngine && swift test
 
 Sign ad hoc (`CODE_SIGN_IDENTITY="-"`), not `CODE_SIGNING_ALLOWED=NO`: the latter drops the
 HealthKit entitlement and Health access fails with "Missing com.apple.developer.healthkit entitlement".
-Health access is read only. The simulator has no Fitness app, so to exercise the sync there you
+Health access reads workouts, effort, heart rate and bodyweight, and writes only strength workouts
+and their active energy. The simulator has no Fitness app, so to exercise the sync there you
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
 EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
 TestFlight: archive with `-allowProvisioningUpdates CURRENT_PROJECT_VERSION=$(date +%Y%m%d%H%M)` (team WDB2HN7DW7), then
 `xcodebuild -exportArchive -archivePath build/Cadence.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates`
 (method app-store-connect, destination upload). Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
-App Store Connect rejects uploads without `NSHealthUpdateUsageDescription` even though Health access is read only; keep it.
 Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence.fitness -importCSV /path/export.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 
@@ -85,6 +89,9 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
 - A `SetRecord` with no `completedAt` is a planned set: the athlete changed that set's weight or reps ahead of time. `PlannedExercise.target(at:)` resolves what a set is planned at.
 - `SetRecord.rir` is optional and set only on a movement's final set. Imported sets have none; progression assumes the target and the UI says so. Imports are idempotent via `importKey`.
 - Health workouts match by day and modality: complete a planned session, enrich a completed one, else create.
+  A strength session with sets logged is still in progress: a watch workout links to it but does not complete it.
+- Finishing a strength session saves a workout to Health unless the watch already recorded one that day. Cadence's own
+  workouts are never read back; a watch workout that arrives later replaces Cadence's copy, and reopening takes it back.
 - No em dashes anywhere in copy. Sentence case. Words say what happens ("Log set 3 of 4").
 - Design: true black canvas, flat cards with a hairline edge (no gradients anywhere, Malin finds them tacky), one electric
   blue accent for whatever is active (the session to start, the movement being logged, today's bar,

@@ -8,6 +8,7 @@ struct StrengthSessionView: View {
     @Bindable var session: TrainingSession
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
+    @Environment(HealthKitService.self) private var health
     @Environment(\.dismiss) private var dismiss
     /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
     @State private var expanded: Int?
@@ -20,22 +21,24 @@ struct StrengthSessionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionHeader(title: "Exercise set") {
-                            Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
-                                .font(.label.monospacedDigit())
-                                .foregroundStyle(Palette.inkSecondary)
-                        }
-                        ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
-                            .padding(.bottom, 4)
-                        ForEach(session.orderedExercises) { exercise in
-                            ExerciseCard(
-                                exercise: exercise,
-                                isExpanded: expanded == exercise.order,
-                                isEditable: session.status != .completed,
-                                focus: $focus,
-                                onToggle: { toggle(exercise) }
-                            )
+                    if !session.exercises.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            SectionHeader(title: "Exercise set") {
+                                Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
+                                    .font(.label.monospacedDigit())
+                                    .foregroundStyle(Palette.inkSecondary)
+                            }
+                            ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
+                                .padding(.bottom, 4)
+                            ForEach(session.orderedExercises) { exercise in
+                                ExerciseCard(
+                                    exercise: exercise,
+                                    isExpanded: expanded == exercise.order,
+                                    isEditable: session.status != .completed,
+                                    focus: $focus,
+                                    onToggle: { toggle(exercise) }
+                                )
+                            }
                         }
                     }
                     footer
@@ -66,9 +69,9 @@ struct StrengthSessionView: View {
                         }
                     } label: { Image(systemName: "ellipsis") }
                 }
-            } else if session.status == .completed {
+            } else if session.status == .completed, !session.exercises.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Reopen", systemImage: "arrow.uturn.backward") { coordinator.reopen(session, in: context) }
+                    Button("Reopen", systemImage: "arrow.uturn.backward") { reopen() }
                 }
             }
         }
@@ -103,7 +106,12 @@ struct StrengthSessionView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Chip(symbol: "clock", text: Format.minutes(session.actualMinutes ?? session.plannedMinutes))
-                    Chip(symbol: "dumbbell", text: "\(session.plannedSetCount) sets")
+                    if !session.exercises.isEmpty {
+                        Chip(symbol: "dumbbell", text: "\(session.plannedSetCount) sets")
+                    }
+                    if let heartRate = session.averageHeartRate {
+                        Chip(symbol: "heart", text: "\(Int(heartRate)) bpm")
+                    }
                     if let rir = session.loggedMeanRIR {
                         Chip(symbol: "gauge.with.dots.needle.50percent", text: "\(String(format: "%.1f", rir)) RIR")
                     }
@@ -118,6 +126,9 @@ struct StrengthSessionView: View {
     }
 
     private var description: String {
+        if session.exercises.isEmpty {
+            return "Recorded outside Cadence, on your watch or in another app. It counts toward training load like any session logged here."
+        }
         let count = session.orderedExercises.count
         let focusCount = session.orderedExercises.filter(\.isFocus).count
         let base = "\(count) movements, \(focusCount) of them for the focus. Rate reps in reserve on each movement's last set and next week's loads follow from it."
@@ -144,15 +155,27 @@ struct StrengthSessionView: View {
                     IconDisc(symbol: "checkmark", tint: Palette.sage)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Logged").font(.rowTitle).foregroundStyle(Palette.ink)
-                        Text(session.importKey != nil
-                             ? "Imported from your previous log, \(Format.load(session.load)) load units. Reps in reserve were assumed to be 2."
-                             : "Session RPE \(String(format: "%.1f", session.rpe ?? 0)), \(Format.load(session.load)) load units. Next week's loads are already adjusted.")
+                        Text(loggedSummary)
                             .font(.body2).foregroundStyle(Palette.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
+    }
+
+    private var loggedSummary: String {
+        let effort = "Session RPE \(String(format: "%.1f", session.rpe ?? 0)), \(Format.load(session.load)) load units."
+        if session.importKey != nil {
+            return "Imported from your previous log, \(Format.load(session.load)) load units. Reps in reserve were assumed to be 2."
+        }
+        if session.loggedSetCount == 0 {
+            if session.exercises.isEmpty {
+                return "\(effort) No sets were logged, so next week's loads stay as they were."
+            }
+            return "\(effort) Completed from Apple Health with no sets logged, so next week's loads stay as they were. Reopen to log them."
+        }
+        return "\(effort) Next week's loads are already adjusted.\(session.healthWorkoutID != nil ? " In Apple Health." : "")"
     }
 
     private func toggle(_ exercise: PlannedExercise) {
@@ -164,6 +187,12 @@ struct StrengthSessionView: View {
     private func finish() {
         coordinator.complete(session, in: context)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Task { await health.record(session, in: context, coordinator: coordinator) }
+    }
+
+    private func reopen() {
+        coordinator.reopen(session, in: context)
+        Task { await health.withdraw(session, in: context) }
     }
 }
 
