@@ -184,3 +184,30 @@ struct DayCard: View {
         .surface(cornerRadius: 22, isActive: isToday)
     }
 }
+
+/// An icon, a title, and one number with its unit.
+struct StatCard: View {
+    let symbol: String
+    let title: String
+    let value: String
+    let unit: String
+    var tint: Color = Palette.ink
+
+    var body: some View {
+        Card(padding: 14) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    IconDisc(symbol: symbol, tint: tint)
+                    Text(title).font(.rowTitle).foregroundStyle(Palette.ink)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(value).font(.numeral).foregroundStyle(Palette.ink)
+                        .contentTransition(.numericText())
+                    Text(unit).font(.body2).foregroundStyle(Palette.inkSecondary)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}

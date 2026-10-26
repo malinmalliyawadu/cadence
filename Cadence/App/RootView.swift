@@ -6,20 +6,17 @@ struct RootView: View {
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selection: Tab = .today
+    @State private var selection: Tab = .home
 
-    enum Tab: Hashable { case today, week, load, library }
+    enum Tab: Hashable { case home, week, library }
 
     var body: some View {
         TabView(selection: $selection) {
-            SwiftUI.Tab("Today", systemImage: "sun.max.fill", value: .today) {
-                TodayView()
+            SwiftUI.Tab("Home", systemImage: "house.fill", value: .home) {
+                HomeView()
             }
             SwiftUI.Tab("Week", systemImage: "calendar", value: .week) {
                 WeekView()
-            }
-            SwiftUI.Tab("Load", systemImage: "waveform.path.ecg", value: .load) {
-                LoadView()
             }
             SwiftUI.Tab("Library", systemImage: "books.vertical.fill", value: .library) {
                 LibraryView()
