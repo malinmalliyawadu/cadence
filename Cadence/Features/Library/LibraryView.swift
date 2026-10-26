@@ -66,7 +66,23 @@ struct ExerciseLibraryRow: View {
     }
 }
 
-/// One movement's story: estimated one-rep max over time, and every logged session.
+/// The movement screen on its own, for checking a movement from inside a session.
+struct ExerciseDetailSheet: View {
+    let exercise: Exercise
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ExerciseDetailView(exercise: exercise)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
+        }
+        .presentationBackground(Palette.canvas)
+    }
+}
+
+/// One movement's story: how it moves, estimated one-rep max over time, and every logged session.
 struct ExerciseDetailView: View {
     let exercise: Exercise
     @Environment(PlanCoordinator.self) private var coordinator
@@ -89,11 +105,13 @@ struct ExerciseDetailView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 8) {
                         DisplayText(text: exercise.name)
-                        Text("\(exercise.primary.displayName) \(exercise.role.rawValue), \(exercise.equipment.rawValue). Loads move in \(Format.kg(exercise.equipment.incrementKg)) kg steps.")
+                        Text("\(exercise.primary.displayName) \(exercise.role.rawValue), \(exercise.equipment.rawValue). Loads move in \(Format.kg(exercise.equipment.incrementKg))\u{00A0}kg steps.")
                             .font(.body2).foregroundStyle(Palette.inkSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(.top, 8)
+
+                    Card { MovementVisual(exercise: exercise) }
 
                     Card(isActive: true) {
                         VStack(alignment: .leading, spacing: 10) {

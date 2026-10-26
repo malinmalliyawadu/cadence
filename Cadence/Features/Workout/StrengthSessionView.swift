@@ -186,6 +186,7 @@ struct ExerciseCard: View {
     /// A later set being re-planned. `nil` means the editor sits on the next set to log.
     @State private var editing: Int?
     @State private var showSwap = false
+    @State private var showMovement = false
 
     private var selected: Int? { editing ?? exercise.nextSetIndex }
     private var selectedIsNext: Bool { selected != nil && selected == exercise.nextSetIndex }
@@ -216,6 +217,9 @@ struct ExerciseCard: View {
         .onChange(of: selected) { prime() }
         .onChange(of: exercise.prescribedWeightKg) { prime() }
         .sheet(isPresented: $showSwap) { SwapMovementSheet(exercise: exercise) }
+        .sheet(isPresented: $showMovement) {
+            if let movement = exercise.exercise { ExerciseDetailSheet(exercise: movement) }
+        }
     }
 
     private var summary: some View {
@@ -249,10 +253,24 @@ struct ExerciseCard: View {
     }
 
     private var rationale: some View {
-        Text(exercise.rationale)
-            .font(.body2)
-            .foregroundStyle(Palette.inkSecondary)
-            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .top, spacing: 12) {
+            Text(exercise.rationale)
+                .font(.body2)
+                .foregroundStyle(Palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if exercise.exercise != nil {
+                Button { showMovement = true } label: {
+                    IconDisc(symbol: "figure.strengthtraining.traditional")
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, -5)
+                .accessibilityLabel("How it moves")
+                .accessibilityHint("Shows the drawing, the muscles worked and the history for \(exercise.name)")
+            }
+        }
     }
 
     private var setsHeader: some View {

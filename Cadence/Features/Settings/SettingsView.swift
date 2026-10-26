@@ -186,6 +186,10 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    NavigationLink("Credits") { CreditsView() }
+                }
+
+                Section {
                     Button("Delete all sessions", role: .destructive) { confirmWipe = true }
                 } footer: {
                     Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")

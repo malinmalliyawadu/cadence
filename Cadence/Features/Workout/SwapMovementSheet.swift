@@ -68,13 +68,10 @@ struct SwapMovementSheet: View {
     }
 
     private func row(_ option: SwapOption) -> some View {
-        Button {
-            coordinator.swap(exercise, to: option.exercise, in: context)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            dismiss()
-        } label: {
+        Button { swap(to: option) } label: {
             Card(cornerRadius: 18, padding: 14) {
                 HStack(alignment: .center, spacing: 12) {
+                    MovementThumbnail(exercise: option.exercise)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(option.exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
                         Text("\(option.exercise.primary.displayName), \(option.exercise.equipment.rawValue)")
@@ -93,6 +90,24 @@ struct SwapMovementSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Replaces \(exercise.name) in this session")
+        // Press and hold to see how a movement moves before committing to it.
+        .contextMenu {
+            Button("Swap to \(option.exercise.name)", systemImage: "arrow.left.arrow.right") { swap(to: option) }
+        } preview: {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(option.exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
+                MovementVisual(exercise: option.exercise)
+            }
+            .padding(20)
+            .frame(width: 360)
+            .background(Palette.surface)
+        }
+    }
+
+    private func swap(to option: SwapOption) {
+        coordinator.swap(exercise, to: option.exercise, in: context)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        dismiss()
     }
 
     private func load() {
