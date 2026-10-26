@@ -51,9 +51,9 @@ and their active energy. The simulator has no Fitness app, so to exercise the sy
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
 EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
-TestFlight: archive with `-allowProvisioningUpdates CURRENT_PROJECT_VERSION=$(date +%Y%m%d%H%M)` (team WDB2HN7DW7), then
-`xcodebuild -exportArchive -archivePath build/Cadence.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates`
-(method app-store-connect, destination upload). Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
+TestFlight: `scripts/testflight.sh` generates the project, archives (team WDB2HN7DW7, build number from the time) and
+uploads via `ExportOptions.plist` (method app-store-connect, destination upload); `--no-upload` exports an .ipa to
+`build/export` instead. Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
 Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence.fitness -importCSV /path/export.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 
