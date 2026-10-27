@@ -24,6 +24,12 @@ enum Format {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    /// "2:30" for a rest with 150 seconds left. Rounds up, so the clock reads 0:00 only at the end.
+    static func countdown(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded(.up))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
     /// "6:00 to 6:40 /km".
     static func pace(_ range: PaceRange) -> String {
         "\(pace(range.fastest)) to \(pace(range.slowest)) /km"

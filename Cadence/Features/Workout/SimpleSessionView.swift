@@ -73,10 +73,13 @@ struct SimpleSessionView: View {
                             dismiss()
                         }
                     } label: { Image(systemName: "ellipsis") }
+                    // Toolbar controls stay white like the back button; blue marks what is active.
+                    .tint(Palette.ink)
                 }
             } else if session.status == .completed {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Reopen", systemImage: "arrow.uturn.backward") { coordinator.reopen(session, in: context) }
+                        .tint(Palette.ink)
                 }
             }
         }

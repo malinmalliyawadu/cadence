@@ -9,6 +9,7 @@ struct StrengthSessionView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
+    @Environment(RestTimerService.self) private var rest
     @Environment(\.dismiss) private var dismiss
     /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
     @State private var expanded: Int?
@@ -18,36 +19,53 @@ struct StrengthSessionView: View {
     var body: some View {
         ZStack {
             ScreenBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    if !session.exercises.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionHeader(title: "Exercise set") {
-                                Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
-                                    .font(.label.monospacedDigit())
-                                    .foregroundStyle(Palette.inkSecondary)
-                            }
-                            ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
-                                .padding(.bottom, 4)
-                            ForEach(session.orderedExercises) { exercise in
-                                ExerciseCard(
-                                    exercise: exercise,
-                                    isExpanded: expanded == exercise.order,
-                                    isEditable: session.status != .completed,
-                                    focus: $focus,
-                                    onToggle: { toggle(exercise) }
-                                )
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
+                        if !session.exercises.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                SectionHeader(title: "Exercise set") {
+                                    Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
+                                        .font(.label.monospacedDigit())
+                                        .foregroundStyle(Palette.inkSecondary)
+                                }
+                                ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
+                                    .padding(.bottom, 4)
+                                ForEach(session.orderedExercises) { exercise in
+                                    ExerciseCard(
+                                        exercise: exercise,
+                                        isExpanded: expanded == exercise.order,
+                                        isEditable: session.status != .completed,
+                                        focus: $focus,
+                                        onToggle: { toggle(exercise) },
+                                        onLogged: {
+                                            startRest(after: exercise)
+                                            revealLogger(in: proxy)
+                                        }
+                                    )
+                                }
                             }
                         }
+                        footer
                     }
-                    footer
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
+        .safeAreaInset(edge: .bottom) {
+            if rest.isResting(in: session), let state = rest.state {
+                RestCard(state: state, onAdjust: { rest.adjust(by: $0) }, onSkip: { rest.stop() })
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onAppear { rest.isOnScreen = true }
+                    .onDisappear { rest.isOnScreen = false }
+            }
+        }
+        .animation(.snappy(duration: 0.3), value: rest.isResting(in: session))
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 if case .weight(let order) = focus {
@@ -64,14 +82,18 @@ struct StrengthSessionView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Skip this session", systemImage: "forward.end", role: .destructive) {
+                            rest.stop(for: session)
                             coordinator.skip(session, in: context)
                             dismiss()
                         }
                     } label: { Image(systemName: "ellipsis") }
+                    // Toolbar controls stay white like the back button; blue marks what is active.
+                    .tint(Palette.ink)
                 }
             } else if session.status == .completed, !session.exercises.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Reopen", systemImage: "arrow.uturn.backward") { reopen() }
+                        .tint(Palette.ink)
                 }
             }
         }
@@ -184,7 +206,29 @@ struct StrengthSessionView: View {
         }
     }
 
+    /// Rest before the next set to do, sized for its movement. Nothing left to do, no rest.
+    private func startRest(after exercise: PlannedExercise) {
+        guard let next = exercise.isComplete ? session.orderedExercises.first(where: { !$0.isComplete }) : exercise,
+              let index = next.nextSetIndex else {
+            rest.stop(for: session)
+            return
+        }
+        let seconds = RestInterval.seconds(for: next.exercise?.role ?? .accessory, repRange: next.repRange)
+        rest.start(seconds: seconds, before: next, set: index, in: session)
+    }
+
+    /// Brings the next set's logger into view once the card has moved on to it, clear of the
+    /// rest card that has just appeared under it.
+    private func revealLogger(in proxy: ScrollViewProxy) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let expanded else { return }
+            withAnimation(.snappy(duration: 0.3)) { proxy.scrollTo(ExerciseCard.loggerID(expanded)) }
+        }
+    }
+
     private func finish() {
+        rest.stop(for: session)
         coordinator.complete(session, in: context)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await health.record(session, in: context, coordinator: coordinator) }
@@ -206,6 +250,7 @@ struct ExerciseCard: View {
     let isEditable: Bool
     var focus: FocusState<StepperField?>.Binding
     let onToggle: () -> Void
+    let onLogged: () -> Void
 
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
@@ -376,14 +421,16 @@ struct ExerciseCard: View {
                         withAnimation(.snappy(duration: 0.25)) { editing = index == exercise.nextSetIndex ? nil : index }
                     }
                 } label: {
+                    // Inset from the edge as far as the set number is on the left, with the
+                    // inset still part of the tap target.
                     Image(systemName: logged ? "arrow.uturn.backward" : "pencil")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(isSelected ? Palette.accent : Palette.inkTertiary)
-                        .frame(width: 44, height: 44)
+                        .padding(.trailing, 14)
+                        .frame(width: 58, height: 44, alignment: .trailing)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, -12)
                 .accessibilityLabel(logged ? "Undo set \(index + 1)" : "Change set \(index + 1)")
             }
         }
@@ -397,6 +444,8 @@ struct ExerciseCard: View {
         }
         .accessibilityElement(children: .combine)
     }
+
+    static func loggerID(_ order: Int) -> String { "logger-\(order)" }
 
     private func editor(for index: Int) -> some View {
         VStack(spacing: 12) {
@@ -424,6 +473,7 @@ struct ExerciseCard: View {
             }
         }
         .padding(.bottom, 4)
+        .id(Self.loggerID(exercise.order))
     }
 
     private var setControls: some View {
@@ -469,6 +519,7 @@ struct ExerciseCard: View {
         focus.wrappedValue = nil
         coordinator.logSet(exercise, at: index, weightKg: weight, reps: reps, rir: asksRIR ? rir : nil, in: context)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        onLogged()
     }
 
     private func save(at index: Int) {

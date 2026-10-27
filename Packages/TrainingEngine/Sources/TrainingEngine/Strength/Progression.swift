@@ -25,11 +25,7 @@ public struct ExercisePrescription: Codable, Sendable, Hashable, Identifiable {
 
     /// Estimated minutes including rest, used by the planner's load model.
     public var estimatedMinutes: Double {
-        let restSeconds: Double = switch exercise.role {
-        case .compound: 150
-        case .accessory: 105
-        case .isolation: 75
-        }
+        let restSeconds = RestInterval.seconds(for: exercise.role, repRange: repRange)
         let perSet = Double(repRange.upperBound) * exercise.secondsPerRep + restSeconds
         return perSet * Double(sets) / 60
     }

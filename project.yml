@@ -26,8 +26,10 @@ targets:
       - path: Cadence
         excludes:
           - "Cadence.entitlements"
+      - path: Shared
     dependencies:
       - package: TrainingEngine
+      - target: CadenceWidgets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness
@@ -43,9 +45,31 @@ targets:
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Cadence saves each strength session you finish to Apple Health as a workout with its active energy, so it shows in Fitness and counts toward your rings."
         CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
         INFOPLIST_KEY_CFBundleDisplayName: Cadence
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: YES
+  CadenceWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CadenceWidgets
+      - path: Shared
+      - path: Cadence/Design/Palette.swift
+      - path: Cadence/Design/Typography.swift
+    dependencies:
+      - package: TrainingEngine
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness.widgets
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: CadenceWidgets/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Cadence
         SWIFT_EMIT_LOC_STRINGS: YES
 schemes:
   Cadence:
