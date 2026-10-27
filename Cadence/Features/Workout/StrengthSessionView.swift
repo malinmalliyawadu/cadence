@@ -149,9 +149,7 @@ struct StrengthSessionView: View {
         if session.exercises.isEmpty {
             return "Recorded outside Cadence, on your watch or in another app. It counts toward training load like any session logged here."
         }
-        let count = session.orderedExercises.count
-        let focusCount = session.orderedExercises.filter(\.isFocus).count
-        let base = "\(count) movements, \(focusCount) of them for the focus. Rate reps in reserve on each movement's last set and next week's loads follow from it."
+        let base = "\(session.orderedExercises.count) movements. Rate reps in reserve on each movement's last set and next week's loads follow from it."
         return session.status == .completed ? "Logged. \(base)" : base
     }
 
@@ -238,7 +236,7 @@ struct StrengthSessionView: View {
     }
 }
 
-/// One movement. Expanded, it lists every set like the reference's exercise set: logged sets with
+/// One movement, led by its photo, which opens how it moves. Expanded, it lists every set like the reference's exercise set: logged sets with
 /// a check, upcoming sets with their own weight and reps and a pencil to change them. The next set
 /// opens the logger under its row. Sets can be added or removed, and before anything is logged the
 /// whole movement can switch scheme for a fresh session.
@@ -268,9 +266,17 @@ struct ExerciseCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: onToggle) { summary.contentShape(.rect) }
-                .buttonStyle(.plain)
-                .accessibilityHint(isExpanded ? "Collapses the exercise" : "Expands the exercise to log sets")
+            HStack(spacing: 12) {
+                if let movement = exercise.exercise {
+                    Button { showMovement = true } label: { MovementThumbnail(exercise: movement, size: 56) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("How \(exercise.name) moves")
+                        .accessibilityHint("Shows the photos, the muscles worked and your history")
+                }
+                Button(action: onToggle) { summary.contentShape(.rect) }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(isExpanded ? "Collapses the exercise" : "Expands the exercise to log sets")
+            }
             if isExpanded {
                 VStack(alignment: .leading, spacing: 14) {
                     rationale
@@ -297,15 +303,10 @@ struct ExerciseCard: View {
     private var summary: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
-                    if exercise.isFocus {
-                        Image(systemName: "scope").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.accent)
-                            .accessibilityLabel("Focus movement")
-                    }
-                }
-                Text("\(exercise.targetSets) × \(exercise.repLower) to \(exercise.repUpper), last set \(exercise.targetRIR) in reserve")
+                Text(exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
+                Text("\(exercise.targetSets) × \(exercise.repLower) to \(exercise.repUpper), \(exercise.targetRIR) RIR")
                     .font(.body2).foregroundStyle(Palette.inkSecondary)
+                    .accessibilityLabel("\(exercise.targetSets) sets of \(exercise.repLower) to \(exercise.repUpper), the last with \(exercise.targetRIR) reps in reserve")
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
@@ -325,24 +326,11 @@ struct ExerciseCard: View {
     }
 
     private var rationale: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(exercise.rationale)
-                .font(.body2)
-                .foregroundStyle(Palette.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if exercise.exercise != nil {
-                Button { showMovement = true } label: {
-                    IconDisc(symbol: "figure.strengthtraining.traditional")
-                        .frame(width: 44, height: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, -5)
-                .accessibilityLabel("How it moves")
-                .accessibilityHint("Shows the drawing, the muscles worked and the history for \(exercise.name)")
-            }
-        }
+        Text(exercise.rationale)
+            .font(.body2)
+            .foregroundStyle(Palette.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var setsHeader: some View {
