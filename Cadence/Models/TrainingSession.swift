@@ -30,6 +30,8 @@ final class TrainingSession {
     var halfRaw: String?
     var focusRaw: String?
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.session) var exercises: [PlannedExercise]
+    /// The recovery multiplier today's loads are prescribed at, so a new reading re-prescribes only when it changes them.
+    var recoveryFactor: Double = 1
 
     // Running
     var runKindRaw: String?

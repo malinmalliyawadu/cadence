@@ -8,7 +8,7 @@ import TrainingEngine
 /// from them, and saves finished strength sessions back as workouts with the effort rated when
 /// they finished. Duration and distance come from the workout; effort comes from the Workout
 /// Effort Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart rate gives each run's average and the
-/// max and resting figures that set the run zones.
+/// max and resting figures that set the run zones; HRV, resting heart rate and sleep give the day's recovery.
 @MainActor
 @Observable
 final class HealthKitService {
@@ -44,10 +44,12 @@ final class HealthKitService {
     private var bodyMassType: HKQuantityType { HKQuantityType(.bodyMass) }
     private var heartRateType: HKQuantityType { HKQuantityType(.heartRate) }
     private var restingHeartRateType: HKQuantityType { HKQuantityType(.restingHeartRate) }
+    private var hrvType: HKQuantityType { HKQuantityType(.heartRateVariabilitySDNN) }
+    private var sleepType: HKCategoryType { HKCategoryType(.sleepAnalysis) }
     private let beatsPerMinute = HKUnit.count().unitDivided(by: .minute())
 
     private var readTypes: Set<HKObjectType> {
-        [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, HKCharacteristicType(.dateOfBirth)]
+        [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, hrvType, sleepType, HKCharacteristicType(.dateOfBirth)]
     }
 
     private var shareTypes: Set<HKSampleType> { [workoutType, activeEnergyType, effortType] }
@@ -153,6 +155,23 @@ final class HealthKitService {
         let readings = try await resting.result(for: store).map { $0.quantity.doubleValue(for: beatsPerMinute) }.sorted()
         let median = readings.isEmpty ? nil : Int(readings[readings.count / 2].rounded())
         return (HeartRateZones.estimatedMaximum(dailyPeaks: dailyPeaks, age: age), median)
+    }
+
+    /// HRV, resting heart rate and time asleep, each over the window its recovery baseline needs.
+    func recoveryReadings() async throws -> RecoveryReadings {
+        func since(days: Int) -> NSPredicate {
+            HKQuery.predicateForSamples(withStart: Calendar.current.date(byAdding: .day, value: -days, to: .now), end: nil)
+        }
+        let hrv = try await HKSampleQueryDescriptor(predicates: [.quantitySample(type: hrvType, predicate: since(days: 62))], sortDescriptors: []).result(for: store)
+        let resting = try await HKSampleQueryDescriptor(predicates: [.quantitySample(type: restingHeartRateType, predicate: since(days: 35))], sortDescriptors: []).result(for: store)
+        let sleep = try await HKSampleQueryDescriptor(predicates: [.categorySample(type: sleepType, predicate: since(days: 33))], sortDescriptors: []).result(for: store)
+        let asleep = HKCategoryValueSleepAnalysis.allAsleepValues
+        return RecoveryReadings(
+            hrv: hrv.map { .init(date: $0.startDate, value: $0.quantity.doubleValue(for: .secondUnit(with: .milli))) },
+            restingHeartRate: resting.map { .init(date: $0.startDate, value: $0.quantity.doubleValue(for: beatsPerMinute)) },
+            sleep: sleep.filter { HKCategoryValueSleepAnalysis(rawValue: $0.value).map(asleep.contains) ?? false }
+                .map { DateInterval(start: $0.startDate, end: max($0.startDate, $0.endDate)) }
+        )
     }
 
     // MARK: Writing
@@ -310,17 +329,23 @@ final class HealthKitService {
             if let mass = try await latestBodyMass() {
                 let profile = coordinator.profile(in: context)
                 let rounded = (mass.kilograms * 10).rounded() / 10
-                if profile.bodyweightFromHealthAt != mass.date || profile.bodyweightKg != rounded {
+                // A weight entered by hand stands until Health has a reading taken after it.
+                let newer = mass.date > (profile.bodyweightEnteredAt ?? .distantPast)
+                if newer, profile.bodyweightFromHealthAt != mass.date || profile.bodyweightKg != rounded {
                     profile.bodyweightKg = rounded
                     profile.bodyweightFromHealthAt = mass.date
                     summary.bodyweightKg = rounded
                 }
             }
-            if let figures = try? await heartRateFigures(), figures.maximum != nil || figures.resting != nil {
+            if let figures = try? await heartRateFigures() {
                 let profile = coordinator.profile(in: context)
-                if let maximum = figures.maximum { profile.maxHeartRate = maximum }
-                if let resting = figures.resting { profile.restingHeartRate = resting }
-                profile.heartRateFromHealthAt = .now
+                var supplied = false
+                if let maximum = figures.maximum, !profile.maxHeartRateSetByHand { profile.maxHeartRate = maximum; supplied = true }
+                if let resting = figures.resting, !profile.restingHeartRateSetByHand { profile.restingHeartRate = resting; supplied = true }
+                if supplied { profile.heartRateFromHealthAt = .now }
+            }
+            if let readings = try? await recoveryReadings() {
+                coordinator.updateRecovery(RecoveryAnalysis.status(from: readings, asOf: .now, calendar: calendar), in: context)
             }
             let recorded = try await workouts(since: since).filter { !$0.isOwn }
             let recordedIDs = Set(recorded.map(\.id.uuidString))

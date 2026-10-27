@@ -48,6 +48,12 @@ enum Format {
 
     static func load(_ au: Double) -> String { Int(au.rounded()).formatted() }
 
+    /// "7 h 20 m" for hours asleep.
+    static func sleep(_ hours: Double) -> String {
+        let m = Int((hours * 60).rounded())
+        return m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(m % 60) m"
+    }
+
     static let weekday: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEEE"

@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  82 tests in under a second. Everything that decides what to train lives here, never in views.
+  96 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -17,13 +17,15 @@ and the weather, generates every strength session, and progresses load from reps
     numbers), and the wall-clock countdown the app, the Live Activity and the notification all read.
   - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
   - `Load/TrainingLoad.swift` - session-RPE load, EWMA acute:chronic ratio, monotony, strain, readiness.
+  - `Load/Recovery.swift` - today's recovery from HRV, resting heart rate and sleep against the athlete's own baselines.
   - `Planning/WeekPlanner.swift` - weekly load budget, then exhaustive scored search over day assignments.
   - `Planning/Weather.swift` - running score from a daily forecast (weighted geometric mean).
   - `Running/RunTargets.swift` - target pace from recent runs (Daniels VDOT, best run of eight weeks) and heart-rate zones (Karvonen when resting HR is known).
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
-  - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score;
+  - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score,
+    and HRV, resting heart rate and sleep for recovery;
     saves finished strength sessions back as Traditional Strength Training workouts with the rated effort as their Workout Effort Score.
   - `Services/ImportService.swift` - CSV import, from Settings (Import), the empty week, and the DEBUG `-importCSV <path>`
     launch argument. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
@@ -53,7 +55,7 @@ cd Packages/TrainingEngine && swift test
 
 Sign ad hoc (`CODE_SIGN_IDENTITY="-"`), not `CODE_SIGNING_ALLOWED=NO`: the latter drops the
 HealthKit entitlement and Health access fails with "Missing com.apple.developer.healthkit entitlement".
-Health access reads workouts, effort, heart rate and bodyweight, and writes only strength workouts,
+Health access reads workouts, effort, heart rate, HRV, sleep and bodyweight, and writes only strength workouts,
 their active energy and their Workout Effort Score. The simulator has no Fitness app, so to exercise the sync there you
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
@@ -79,6 +81,13 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   it, starting from mean RIR (8.5 minus RIR, clamped), which is also the fallback for imports and older
   logs; the rating sets load only, RIR still drives progression. Runs and yoga use the athlete's rating,
   or the Apple Health Workout Effort Score. This is what lets a long run trade against a leg day.
+- **Recovery trims today, load trims the week.** HRV (7-day mean of log SDNN against the 60 days before,
+  plus or minus half an SD), resting heart rate (3 days against 30) and sleep (last night, last three nights)
+  score a recovery level. Low or poor recovery takes 5 or 10% off today's lifts: readiness uses the lower of the
+  load and recovery multipliers. Sessions are generated a week ahead, so after each Health sync
+  `PlanCoordinator.applyRecovery` re-prescribes today's untouched strength session, and only when the multiplier changes.
+  A session with a set logged is left alone. A heart rate set by hand stands until the athlete hands it back to Health
+  in Settings; a bodyweight entered by hand stands until Health has a reading taken after it.
 - **ACWR is exponentially weighted (7 and 28 day), not rolling.** No cliff when a big session
   leaves the window. The display and planning snapshots use yesterday as the reference day until
   something is logged today, otherwise every morning looks like a taper.
