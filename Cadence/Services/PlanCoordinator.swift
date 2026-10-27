@@ -411,6 +411,60 @@ final class PlanCoordinator {
         try? context.save()
     }
 
+    /// Moves a planned session to another day, keeping its time of day. Nothing logged yet, so its history stays put.
+    func move(_ session: TrainingSession, to day: Date, in context: ModelContext) {
+        guard session.status == .planned, session.loggedSetCount == 0 else { return }
+        let time = calendar.dateComponents([.hour, .minute], from: session.date)
+        let start = calendar.startOfDay(for: day)
+        session.date = calendar.date(byAdding: time, to: start) ?? start
+        session.weekStart = weekStart(containing: start)
+        try? context.save()
+        applyRecovery(in: context)
+    }
+
+    /// Puts a lift on a day the plan left free.
+    func addStrength(on day: Date, half: BodyHalf, focus: FocusArea, in context: ModelContext) {
+        let session = insertSession(on: day, modality: .strength, minutes: 0, in: context)
+        regenerate(session, half: half, focus: focus, in: context)
+    }
+
+    func addRun(on day: Date, kind: RunKind, in context: ModelContext) {
+        let session = insertSession(on: day, modality: .running, minutes: kind.defaultMinutes, in: context)
+        session.runKind = kind
+        try? context.save()
+    }
+
+    func addYoga(on day: Date, in context: ModelContext) {
+        _ = insertSession(on: day, modality: .yoga, minutes: profile(in: context).yogaMinutes, in: context)
+        try? context.save()
+    }
+
+    /// A planned session at 6 am, the hour the planner gives a day's first session.
+    private func insertSession(on day: Date, modality: Modality, minutes: Double, in context: ModelContext) -> TrainingSession {
+        let start = calendar.startOfDay(for: day)
+        let session = TrainingSession(date: calendar.date(byAdding: .hour, value: 6, to: start) ?? start, modality: modality,
+                                      plannedMinutes: minutes, weekStart: weekStart(containing: start))
+        context.insert(session)
+        return session
+    }
+
+    /// Planned sessions elsewhere in the week that could move to `day`. A missed one earlier in
+    /// the week counts, so it can be made up; one with sets logged is under way and stays.
+    func moveCandidates(to day: Date, in context: ModelContext) -> [TrainingSession] {
+        sessions(weekStart: weekStart(containing: day), in: context).filter {
+            $0.status == .planned && $0.loggedSetCount == 0 && !calendar.isDate($0.date, inSameDayAs: day)
+        }
+    }
+
+    /// Days from today on in the session's week with nothing planned or done, for moving it to.
+    func restDays(forMoving session: TrainingSession, in context: ModelContext) -> [Date] {
+        let week = sessions(weekStart: session.weekStart, in: context).filter { $0.status != .skipped }
+        let today = calendar.startOfDay(for: .now)
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: session.weekStart) }.filter { day in
+            day >= today && !calendar.isDate(day, inSameDayAs: session.date) && !week.contains { calendar.isDate($0.date, inSameDayAs: day) }
+        }
+    }
+
     /// Changes a planned run's type. Minutes follow the type's default unless the athlete already shortened it.
     func changeRunKind(_ session: TrainingSession, to kind: RunKind, in context: ModelContext) {
         guard session.modality == .running, session.status == .planned else { return }

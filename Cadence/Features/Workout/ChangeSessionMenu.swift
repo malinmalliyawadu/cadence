@@ -3,7 +3,8 @@ import SwiftUI
 import TrainingEngine
 
 /// Everything the athlete can change about a session before starting it: the focus, the
-/// half, which day it happens, or a run's type. Hidden once something has been logged.
+/// half, which day it happens (another session's, or a rest day's), or a run's type. Hidden
+/// once something has been logged.
 struct ChangeSessionMenu: View {
     let session: TrainingSession
     @Environment(\.modelContext) private var context
@@ -41,12 +42,16 @@ struct ChangeSessionMenu: View {
                     }
                 }
             }
-            let candidates = coordinator.swapCandidates(for: session, in: context)
-            if !candidates.isEmpty {
+            // Other sessions and rest days, in day order. Nil is a rest day.
+            let targets: [(date: Date, other: TrainingSession?)] = (coordinator.swapCandidates(for: session, in: context).map { ($0.date, $0) }
+                + coordinator.restDays(forMoving: session, in: context).map { ($0, nil) }).sorted { $0.date < $1.date }
+            if !targets.isEmpty {
                 Menu("Swap day with") {
-                    ForEach(candidates) { other in
-                        Button("\(Format.weekday.string(from: other.date)): \(other.title)") {
-                            coordinator.swapDays(session, other, in: context)
+                    ForEach(targets, id: \.date) { date, other in
+                        if let other {
+                            Button("\(Format.weekday.string(from: date)): \(other.title)") { coordinator.swapDays(session, other, in: context) }
+                        } else {
+                            Button("\(Format.weekday.string(from: date)): Rest") { coordinator.move(session, to: date, in: context) }
                         }
                     }
                 }
