@@ -129,11 +129,12 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Stepper("Bodyweight: \(Format.kg(profile.bodyweightKg)) kg", value: $profile.bodyweightKg, in: 40...200, step: 0.5)
-                        .onChange(of: profile.bodyweightKg) { _, _ in
-                            // A manual nudge is a manual value until Health next reports a reading.
-                            if profile.bodyweightFromHealthAt != nil, !syncing { profile.bodyweightFromHealthAt = nil }
-                        }
+                    // A manual nudge is a manual value until Health has a reading taken after it.
+                    Stepper("Bodyweight: \(Format.kg(profile.bodyweightKg)) kg", value: Binding(get: { profile.bodyweightKg }, set: {
+                        profile.bodyweightKg = $0
+                        profile.bodyweightFromHealthAt = nil
+                        profile.bodyweightEnteredAt = .now
+                    }), in: 40...200, step: 0.5)
                 } header: {
                     Text("Body")
                 } footer: {
@@ -147,16 +148,30 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Stepper(value: Binding(get: { profile.maxHeartRate ?? 185 }, set: { profile.maxHeartRate = $0; profile.heartRateFromHealthAt = nil }), in: 120...220) {
+                    Stepper(value: Binding(get: { profile.maxHeartRate ?? 185 }, set: { profile.maxHeartRate = $0; profile.maxHeartRateSetByHand = true }), in: 120...220) {
                         LabeledContent("Max heart rate", value: profile.maxHeartRate.map { "\($0) bpm" } ?? "Not set")
                     }
-                    Stepper(value: Binding(get: { profile.restingHeartRate ?? 55 }, set: { profile.restingHeartRate = $0; profile.heartRateFromHealthAt = nil }), in: 30...100) {
+                    Stepper(value: Binding(get: { profile.restingHeartRate ?? 55 }, set: { profile.restingHeartRate = $0; profile.restingHeartRateSetByHand = true }), in: 30...100) {
                         LabeledContent("Resting heart rate", value: profile.restingHeartRate.map { "\($0) bpm" } ?? "Not set")
+                    }
+                    if health.isEnabled, profile.maxHeartRateSetByHand || profile.restingHeartRateSetByHand {
+                        Button("Use Apple Health") {
+                            profile.maxHeartRateSetByHand = false
+                            profile.restingHeartRateSetByHand = false
+                            syncing = true
+                            Task {
+                                await health.sync(in: context, coordinator: coordinator)
+                                syncing = false
+                            }
+                        }
+                        .disabled(syncing)
                     }
                 } header: {
                     Text("Heart rate")
                 } footer: {
-                    if let date = profile.heartRateFromHealthAt {
+                    if profile.maxHeartRateSetByHand || profile.restingHeartRateSetByHand {
+                        Text(heartRateByHandNote(max: profile.maxHeartRateSetByHand, resting: profile.restingHeartRateSetByHand, healthEnabled: health.isEnabled))
+                    } else if let date = profile.heartRateFromHealthAt {
                         Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
                     } else {
                         Text(health.isEnabled
@@ -203,7 +218,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. Syncs whenever Cadence opens.")
+                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. HRV, resting heart rate and sleep set the day's recovery. Syncs whenever Cadence opens.")
                 }
 
                 Section {
@@ -268,6 +283,12 @@ struct SettingsView: View {
                 importing = false
             }
         }
+    }
+
+    private func heartRateByHandNote(max: Bool, resting: Bool, healthEnabled: Bool) -> String {
+        let what = max && resting ? "Both are" : max ? "Max is" : "Resting is"
+        let kept = healthEnabled ? " Apple Health leaves \(max && resting ? "them" : "it") alone." : ""
+        return "Sets the heart-rate zones for runs. \(what) set by hand.\(kept)"
     }
 
     private func alwaysIncludedSummary(_ ids: [String]) -> String {

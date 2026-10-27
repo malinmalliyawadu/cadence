@@ -35,6 +35,15 @@ enum Palette {
         }
     }
 
+    static func color(for level: RecoveryLevel) -> Color {
+        switch level {
+        case .recovered: sage
+        case .fair: sky
+        case .low: amber
+        case .poor: rose
+        }
+    }
+
     static func color(for zone: LoadZone) -> Color {
         switch zone {
         case .building: rest

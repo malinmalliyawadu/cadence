@@ -21,6 +21,14 @@ struct HomeView: View {
     private var weekSessions: [TrainingSession] { sessions.filter { $0.weekStart == weekStart } }
     private var weekHasPlan: Bool { !weekSessions.isEmpty }
     private var snapshot: LoadSnapshot { coordinator.displaySnapshot(entries: sessions.compactMap(\.loadEntry), now: now) }
+    /// Today's recovery, once Apple Health has been read today.
+    private var recovery: RecoveryStatus? { coordinator.recovery.flatMap { calendar.isDate($0.asOf, inSameDayAs: now) ? $0 : nil } }
+    private var todaysLifting: RecoveryStatus.TodaysLifting {
+        let lifts = today.filter { $0.modality == .strength && $0.status == .planned }
+        if lifts.contains(where: { $0.loggedSetCount == 0 && $0.recoveryFactor < 1 }) { return .trimmed }
+        if lifts.contains(where: { $0.loggedSetCount > 0 }) { return .started }
+        return .none
+    }
 
     /// Planned sessions from today on, a strength session already under way first.
     private var ahead: [TrainingSession] {
@@ -65,7 +73,7 @@ struct HomeView: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeader(title: "Readiness")
-                    ReadinessCard(snapshot: snapshot)
+                    ReadinessCard(snapshot: snapshot, recovery: recovery, lifting: todaysLifting)
                     tiles
                 }
                 VStack(alignment: .leading, spacing: 12) {

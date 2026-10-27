@@ -9,12 +9,17 @@ final class AthleteProfile {
     var bodyweightKg: Double
     /// When Apple Health last supplied the bodyweight. Nil means it was entered by hand.
     var bodyweightFromHealthAt: Date?
+    /// When the bodyweight was last entered by hand. Only a Health reading taken after it replaces it.
+    var bodyweightEnteredAt: Date?
 
     // Heart rate, for run zones. Nil until Health supplies it or the athlete sets it.
     var maxHeartRate: Int?
     var restingHeartRate: Int?
-    /// When Apple Health last supplied the heart-rate figures. Nil means they were set by hand.
+    /// When Apple Health last supplied either heart-rate figure.
     var heartRateFromHealthAt: Date?
+    /// Set by hand in Settings, so Health no longer updates it (a lab-tested max, say).
+    var maxHeartRateSetByHand = false
+    var restingHeartRateSetByHand = false
 
     // Weekly structure
     var strengthSessionsPerWeek: Int

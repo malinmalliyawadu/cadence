@@ -147,35 +147,58 @@ public enum LoadAnalysis {
     }
 }
 
-/// Turns a load snapshot into concrete adjustments for the generator and planner.
+/// Turns a load snapshot, and today's recovery when there is one, into concrete adjustments
+/// for the generator and planner.
 public struct Readiness: Sendable, Hashable {
-    /// Multiplier applied to prescribed strength loads.
+    /// Multiplier applied to prescribed strength loads: the lower of what load and recovery call for.
     public let loadMultiplier: Double
     /// Sets removed from compound and accessory movements.
     public let setReduction: Int
-    /// Multiplier applied to the week's planned training load versus chronic.
+    /// Multiplier applied to the week's planned training load versus chronic. Load only: one
+    /// morning's recovery says nothing about Saturday.
     public let weeklyLoadFactor: Double
     public let zone: LoadZone
     public let headline: String
+    public let recovery: RecoveryStatus?
 
-    public static func from(_ snapshot: LoadSnapshot) -> Readiness {
+    /// Why loads are trimmed, as a clause for the movement's rationale, when recovery rather than
+    /// load sets the multiplier. Nil when load does, or nothing is trimmed.
+    public var cutReason: String? {
+        guard let recovery, recovery.loadMultiplier < 1, recovery.loadMultiplier < loadOnlyMultiplier else { return nil }
+        return recovery.reason
+    }
+
+    private let loadOnlyMultiplier: Double
+
+    private init(loadMultiplier: Double, setReduction: Int, weeklyLoadFactor: Double, zone: LoadZone, headline: String, recovery: RecoveryStatus?) {
+        self.loadOnlyMultiplier = loadMultiplier
+        self.loadMultiplier = min(loadMultiplier, recovery?.loadMultiplier ?? 1)
+        self.setReduction = setReduction
+        self.weeklyLoadFactor = weeklyLoadFactor
+        self.zone = zone
+        self.headline = headline
+        self.recovery = recovery
+    }
+
+    /// - Parameter recovery: today's recovery. Pass it only for a session on the day it was measured.
+    public static func from(_ snapshot: LoadSnapshot, recovery: RecoveryStatus? = nil) -> Readiness {
         let zone = snapshot.zone
         switch zone {
         case .building:
             return Readiness(loadMultiplier: 1, setReduction: 0, weeklyLoadFactor: 1.05, zone: zone,
-                             headline: "Building your baseline. Train normally and log everything.")
+                             headline: "Building your baseline. Train normally and log everything.", recovery: recovery)
         case .undertrained:
             return Readiness(loadMultiplier: 1, setReduction: 0, weeklyLoadFactor: 1.15, zone: zone,
-                             headline: "Load is below your baseline. Room to push this week.")
+                             headline: "Load is below your baseline. Room to push this week.", recovery: recovery)
         case .optimal:
             return Readiness(loadMultiplier: 1, setReduction: 0, weeklyLoadFactor: 1.08, zone: zone,
-                             headline: "Load is in the sweet spot. Progress as earned.")
+                             headline: "Load is in the sweet spot. Progress as earned.", recovery: recovery)
         case .elevated:
             return Readiness(loadMultiplier: 0.95, setReduction: 1, weeklyLoadFactor: 0.95, zone: zone,
-                             headline: "Load is climbing fast. Trimming volume a touch this week.")
+                             headline: "Load is climbing fast. Trimming volume a touch this week.", recovery: recovery)
         case .danger:
             return Readiness(loadMultiplier: 0.9, setReduction: 1, weeklyLoadFactor: 0.85, zone: zone,
-                             headline: "Load spiked. This week is a deload: lighter, shorter, more sleep.")
+                             headline: "Load spiked. This week is a deload: lighter, shorter, more sleep.", recovery: recovery)
         }
     }
 }

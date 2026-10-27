@@ -114,8 +114,9 @@ struct SwapMovementSheet: View {
         options = coordinator.swapOptions(for: exercise, in: context)
         let history = coordinator.history(in: context)
         let bodyweight = coordinator.profile(in: context).bodyweightKg
+        let readiness = coordinator.readiness(for: exercise, in: context)
         loads = Dictionary(uniqueKeysWithValues: options.map { option in
-            (option.id, coordinator.prescription(for: option.exercise, in: exercise, history: history, bodyweightKg: bodyweight).weightKg)
+            (option.id, coordinator.prescription(for: option.exercise, in: exercise, history: history, readiness: readiness, bodyweightKg: bodyweight).weightKg)
         })
     }
 }

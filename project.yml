@@ -41,7 +41,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Cadence uses your location to fetch the week's forecast so runs land on the best days."
-        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs, yoga classes and strength workouts from Apple Health, including duration, distance, effort and heart rate, so they count toward your training load and set your run pace and heart-rate zones."
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs, yoga classes and strength workouts from Apple Health, including duration, distance, effort and heart rate, so they count toward your training load and set your run pace and heart-rate zones. Heart-rate variability, resting heart rate and sleep tell it how recovered you are, so a day you are run down gets lighter lifts."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Cadence saves each strength session you finish to Apple Health as a workout with its active energy and the effort you rate, so it shows in Fitness and counts toward your rings."
         CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
