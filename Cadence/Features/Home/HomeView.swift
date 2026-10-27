@@ -153,9 +153,9 @@ struct HomeView: View {
     private var hero: some View {
         if let upNext, upNextIsToday {
             UpNextCard(session: upNext, isToday: true, forecast: forecast(on: upNext.date))
-            if !loggedToday.isEmpty { DayDoneCard(logged: loggedToday) }
+            if !loggedToday.isEmpty { DayDoneCard(date: now, logged: loggedToday) }
         } else {
-            DayDoneCard(logged: loggedToday)
+            DayDoneCard(date: now, logged: loggedToday)
             if let upNext {
                 UpNextCard(session: upNext, isToday: false, forecast: forecast(on: upNext.date))
             }

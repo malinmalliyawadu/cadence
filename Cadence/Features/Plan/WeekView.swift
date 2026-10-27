@@ -50,11 +50,6 @@ struct WeekView: View {
                 .sharedBackgroundVisibility(.hidden)
             }
             .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
-            .confirmationDialog("Re-plan this week?", isPresented: $confirmReplan, titleVisibility: .visible) {
-                Button("Re-plan remaining days") { Task { await coordinator.planWeek(containing: weekStart, in: context) } }
-            } message: {
-                Text("Sessions you have already completed stay. Everything else is rebuilt from today's load and forecast.")
-            }
         }
     }
 
@@ -104,6 +99,12 @@ struct WeekView: View {
         }
         .buttonStyle(.secondary)
         .disabled(coordinator.phase == .planning || weekOffset == 1 && weekSessions.isEmpty)
+        // On the button, so the popover points at it.
+        .confirmationDialog("Re-plan this week?", isPresented: $confirmReplan, titleVisibility: .visible) {
+            Button("Re-plan remaining days") { Task { await coordinator.planWeek(containing: weekStart, in: context) } }
+        } message: {
+            Text("Sessions you have already completed stay. Everything else is rebuilt from today's load and forecast.")
+        }
     }
 }
 
@@ -137,9 +138,13 @@ struct DayCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 if sessions.isEmpty {
-                    Text("Rest")
-                        .font(.rowTitle)
-                        .foregroundStyle(Palette.inkTertiary)
+                    HStack(spacing: 12) {
+                        Text("Rest")
+                            .font(.rowTitle)
+                            .foregroundStyle(Palette.inkTertiary)
+                        Spacer(minLength: 0)
+                        RestDayMenu(date: date)
+                    }
                 } else {
                     ForEach(sessions) { session in
                         NavigationLink(value: session) {

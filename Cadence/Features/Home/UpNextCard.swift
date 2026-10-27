@@ -159,8 +159,10 @@ struct UpNextCard: View {
     }
 }
 
-/// A day with nothing left to do: rest, or everything already logged.
+/// A day with nothing left to do: rest, or everything already logged. A rest day can still be
+/// changed to a session.
 struct DayDoneCard: View {
+    let date: Date
     let logged: [TrainingSession]
 
     var body: some View {
@@ -174,9 +176,11 @@ struct DayDoneCard: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if logged.isEmpty { RestDayMenu(date: date) }
             }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var message: String {
