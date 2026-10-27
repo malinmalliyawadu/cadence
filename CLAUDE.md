@@ -22,7 +22,7 @@ and the weather, generates every strength session, and progresses load from reps
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score;
-    saves finished strength sessions back as Traditional Strength Training workouts.
+    saves finished strength sessions back as Traditional Strength Training workouts with the rated effort as their Workout Effort Score.
   - `Services/ImportService.swift` - CSV import, from Settings (Import), the empty week, and the DEBUG `-importCSV <path>`
     launch argument. It adds, never duplicates: a day that already has a completed run or a lift with logged sets is
     left alone, and planned, skipped or setless sessions on an imported day are replaced (a watch workout linked to a
@@ -46,8 +46,8 @@ cd Packages/TrainingEngine && swift test
 
 Sign ad hoc (`CODE_SIGN_IDENTITY="-"`), not `CODE_SIGNING_ALLOWED=NO`: the latter drops the
 HealthKit entitlement and Health access fails with "Missing com.apple.developer.healthkit entitlement".
-Health access reads workouts, effort, heart rate and bodyweight, and writes only strength workouts
-and their active energy. The simulator has no Fitness app, so to exercise the sync there you
+Health access reads workouts, effort, heart rate and bodyweight, and writes only strength workouts,
+their active energy and their Workout Effort Score. The simulator has no Fitness app, so to exercise the sync there you
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
 EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
@@ -67,9 +67,11 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   athlete stopped early) the last working set is assumed to land on the target. Jumps are capped at two increments.
   Three sessions without e1RM growth trigger a 10% deload. Bodyweight movements progress on
   bodyweight plus added load, so dips and pull-ups are not stuck at "0 kg".
-- **One load scale for everything.** Session RPE times minutes (Foster). Strength RPE is derived
-  from mean RIR (8.5 minus RIR, clamped). Runs and yoga use the athlete's rating, or the Apple
-  Health Workout Effort Score. This is what lets a long run trade against a leg day.
+- **One load scale for everything.** Session RPE times minutes (Foster). Every session takes the
+  athlete's 1 to 10 rating, on Apple's Workout Effort Score scale. Finishing a strength session asks for
+  it, starting from mean RIR (8.5 minus RIR, clamped), which is also the fallback for imports and older
+  logs; the rating sets load only, RIR still drives progression. Runs and yoga use the athlete's rating,
+  or the Apple Health Workout Effort Score. This is what lets a long run trade against a leg day.
 - **ACWR is exponentially weighted (7 and 28 day), not rolling.** No cliff when a big session
   leaves the window. The display and planning snapshots use yesterday as the reference day until
   something is logged today, otherwise every morning looks like a taper.
@@ -90,8 +92,9 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
 - `SetRecord.rir` is optional and set only on a movement's final set. Imported sets have none; progression assumes the target and the UI says so. Imports are idempotent via `importKey`.
 - Health workouts match by day and modality: complete a planned session, enrich a completed one, else create.
   A strength session with sets logged is still in progress: a watch workout links to it but does not complete it.
-- Finishing a strength session saves a workout to Health unless the watch already recorded one that day. Cadence's own
-  workouts are never read back; a watch workout that arrives later replaces Cadence's copy, and reopening takes it back.
+- Finishing a strength session saves a workout to Health, with the rated effort related to it, unless the watch
+  already recorded one that day; then the rating goes on the watch workout. Cadence's own workouts are never read
+  back; a watch workout that arrives later replaces Cadence's copy, and reopening takes back the workout or the rating.
 - No em dashes anywhere in copy. Sentence case. Words say what happens ("Log set 3 of 4").
 - Design: true black canvas, flat cards with a hairline edge (no gradients anywhere, Malin finds them tacky), one electric
   blue accent for whatever is active (the session to start, the movement being logged, today's bar,
