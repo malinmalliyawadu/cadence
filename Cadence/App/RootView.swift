@@ -5,6 +5,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
+    @Environment(RestTimerService.self) private var rest
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .home
 
@@ -24,13 +25,16 @@ struct RootView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
+            rest.sync()
             _ = coordinator.profile(in: context)
             await importFromLaunchArguments()
             await coordinator.refreshForecast(in: context)
             await health.sync(in: context, coordinator: coordinator)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, health.isEnabled else { return }
+            guard phase == .active else { return }
+            rest.sync()
+            guard health.isEnabled else { return }
             Task { await health.sync(in: context, coordinator: coordinator) }
         }
     }

@@ -6,6 +6,7 @@ struct CadenceApp: App {
     let container: ModelContainer
     @State private var coordinator = PlanCoordinator()
     @State private var health = HealthKitService()
+    @State private var rest = RestTimerService()
 
     init() {
         let schema = Schema([AthleteProfile.self, TrainingSession.self, PlannedExercise.self, SetRecord.self, ForecastDay.self])
@@ -22,6 +23,7 @@ struct CadenceApp: App {
             RootView()
                 .environment(coordinator)
                 .environment(health)
+                .environment(rest)
                 .preferredColorScheme(.dark)
                 .tint(Palette.accent)
         }
