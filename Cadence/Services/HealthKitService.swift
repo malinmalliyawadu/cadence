@@ -5,9 +5,9 @@ import SwiftData
 import TrainingEngine
 
 /// Reads runs, yoga and strength workouts from Apple Health and completes Cadence sessions
-/// from them, and saves finished strength sessions back as workouts. Duration and distance come
-/// from the workout; effort comes from the Workout Effort Score the athlete rates in Fitness
-/// (1 to 10), falling back to the estimated score. Heart rate gives each run's average and the
+/// from them, and saves finished strength sessions back as workouts with the effort rated when
+/// they finished. Duration and distance come from the workout; effort comes from the Workout
+/// Effort Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart rate gives each run's average and the
 /// max and resting figures that set the run zones.
 @MainActor
 @Observable
@@ -50,7 +50,7 @@ final class HealthKitService {
         [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, HKCharacteristicType(.dateOfBirth)]
     }
 
-    private var shareTypes: Set<HKSampleType> { [workoutType, activeEnergyType] }
+    private var shareTypes: Set<HKSampleType> { [workoutType, activeEnergyType, effortType] }
 
     var isAvailable: Bool { state != .unavailable }
 
@@ -158,17 +158,22 @@ final class HealthKitService {
     // MARK: Writing
 
     /// Saves a finished strength session to Apple Health as a Traditional Strength Training
-    /// workout with an estimate of the active energy, so it shows in Fitness and counts toward
-    /// the Move ring. A watch recording of the same day's lifting is linked instead, and
-    /// finishing a reopened session replaces what Cadence saved the first time.
+    /// workout with an estimate of the active energy and the effort rated on finishing, so it
+    /// shows in Fitness and counts toward the Move ring. A watch recording of the same day's
+    /// lifting is linked instead and takes the rating, and finishing a reopened session replaces
+    /// what Cadence saved the first time.
     func record(_ session: TrainingSession, in context: ModelContext, coordinator: PlanCoordinator) async {
         guard isEnabled, session.modality == .strength, session.status == .completed,
               store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
         let calendar = coordinator.calendar
         do {
-            if let id = session.healthWorkoutID, let linked = try await storedWorkout(id: id), isOwn(linked) {
-                try await delete(linked)
-                session.healthWorkoutID = nil
+            if let id = session.healthWorkoutID, let linked = try await storedWorkout(id: id) {
+                if isOwn(linked) {
+                    try await delete(linked)
+                    session.healthWorkoutID = nil
+                } else {
+                    try await deleteOwnEffort(on: linked)
+                }
             }
             // The watch recorded this session already, or ended its workout before it was finished here.
             let recorded = try await workouts(since: calendar.startOfDay(for: session.date)).filter {
@@ -182,6 +187,10 @@ final class HealthKitService {
                 session.healthWorkoutID = watch.id.uuidString
                 apply(watch, to: session)
                 try context.save()
+                if let workout = try await storedWorkout(id: watch.id.uuidString) {
+                    try await deleteOwnEffort(on: workout)
+                    try await rate(workout, as: session.rpe)
+                }
                 return
             }
 
@@ -213,16 +222,19 @@ final class HealthKitService {
             guard let saved = try await builder.finishWorkout() else { return }
             session.healthWorkoutID = saved.uuid.uuidString
             try context.save()
+            try await rate(saved, as: session.rpe)
         } catch {
             lastMessage = "Could not save the session to Apple Health: \(error.localizedDescription)"
         }
     }
 
-    /// Takes back the workout Cadence saved when its session is reopened. A watch recording stays linked.
+    /// Takes back the workout Cadence saved when its session is reopened. A watch recording stays
+    /// linked and loses only the effort Cadence gave it.
     func withdraw(_ session: TrainingSession, in context: ModelContext) async {
         guard let id = session.healthWorkoutID else { return }
         do {
-            guard let linked = try await storedWorkout(id: id), isOwn(linked) else { return }
+            guard let linked = try await storedWorkout(id: id) else { return }
+            guard isOwn(linked) else { try await deleteOwnEffort(on: linked); return }
             try await delete(linked)
             session.healthWorkoutID = nil
             try context.save()
@@ -235,7 +247,26 @@ final class HealthKitService {
         if store.authorizationStatus(for: activeEnergyType) == .sharingAuthorized {
             _ = try await store.deleteObjects(of: activeEnergyType, predicate: HKQuery.predicateForObjects(from: workout))
         }
+        try await deleteOwnEffort(on: workout)
         try await store.delete(workout)
+    }
+
+    /// Relates a Workout Effort Score to the workout, so Fitness shows it as the rated effort.
+    private func rate(_ workout: HKWorkout, as effort: Double?) async throws {
+        guard let effort, store.authorizationStatus(for: effortType) == .sharingAuthorized else { return }
+        let score = min(10, max(1, effort.rounded()))
+        let sample = HKQuantitySample(type: effortType, quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: score), start: workout.startDate, end: workout.endDate)
+        _ = try await store.relateWorkoutEffortSample(sample, with: workout, activity: nil)
+    }
+
+    /// Removes the effort Cadence related to a workout. Ratings from Fitness are left alone.
+    private func deleteOwnEffort(on workout: HKWorkout) async throws {
+        guard store.authorizationStatus(for: effortType) == .sharingAuthorized else { return }
+        let own = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForWorkoutEffortSamplesRelated(workout: workout, activity: nil),
+            HKQuery.predicateForObjects(from: .default()),
+        ])
+        _ = try await store.deleteObjects(of: effortType, predicate: own)
     }
 
     // MARK: Syncing
@@ -359,7 +390,7 @@ final class HealthKitService {
             let rounded = (km * 10).rounded() / 10
             if session.distanceKm != rounded { session.distanceKm = rounded; changed = true }
         }
-        // Logged reps in reserve say more about a lifting session than a whole-workout score.
+        // A lifting session logged here was rated when it finished; Health holds a copy of that rating.
         let effortApplies = !(session.modality == .strength && session.loggedSetCount > 0)
         if let effort = workout.effort, effortApplies, session.rpe != effort { session.rpe = effort; changed = true }
         if let heartRate = workout.averageHeartRate, session.averageHeartRate != heartRate.rounded() { session.averageHeartRate = heartRate.rounded(); changed = true }
