@@ -232,10 +232,10 @@ final class PlanCoordinator {
 
     // MARK: Logging
 
-    /// Marks a session done. Strength sessions derive their RPE from the logged RIR, or take the
-    /// given effort when nothing was logged (a workout recorded only on the watch), and advance
-    /// the focus rotation so the next plan picks up where this one left off. Minutes already
-    /// taken from an Apple Health workout are kept.
+    /// Marks a session done. Strength sessions take the effort rated on finishing (or from a
+    /// watch workout), else derive it from the logged RIR, and advance the focus rotation so the
+    /// next plan picks up where this one left off. Minutes already taken from an Apple Health
+    /// workout are kept.
     func complete(_ session: TrainingSession, at date: Date = .now, minutes: Double? = nil, rpe: Double? = nil, distanceKm: Double? = nil, in context: ModelContext) {
         session.status = .completed
         session.completedAt = date
@@ -243,14 +243,18 @@ final class PlanCoordinator {
         if let rpe { session.rpe = rpe }
         if let distanceKm { session.distanceKm = distanceKm }
         if session.modality == .strength {
-            let derived = TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
-            session.rpe = session.loggedSetCount > 0 ? derived : rpe ?? derived
+            session.rpe = rpe ?? suggestedEffort(for: session)
             let profile = profile(in: context)
             if let focus = session.focus {
                 if focus.half == .upper { profile.nextUpperFocus = focus.next } else { profile.nextLowerFocus = focus.next }
             }
         }
         try? context.save()
+    }
+
+    /// Where the effort question starts for a strength session: the RPE its reps in reserve imply.
+    func suggestedEffort(for session: TrainingSession) -> Double {
+        TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
     }
 
     func skip(_ session: TrainingSession, in context: ModelContext) {

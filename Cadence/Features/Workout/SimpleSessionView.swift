@@ -227,19 +227,7 @@ struct SimpleSessionView: View {
     }
 
     private var effort: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("How hard was it?").font(.rowTitle).foregroundStyle(Palette.ink)
-                    Spacer()
-                    Text("\(Int(rpe)), \(rpeWord)").font(.numeralSmall).foregroundStyle(Palette.accent)
-                }
-                Slider(value: $rpe, in: 1...10, step: 1)
-                    .tint(Palette.accent)
-                    .accessibilityLabel("Rating of perceived exertion")
-                    .accessibilityValue("\(Int(rpe)), \(rpeWord)")
-            }
-        }
+        EffortCard(title: "How hard was it?", rpe: $rpe)
     }
 
     private var guidance: String {
@@ -255,16 +243,6 @@ struct SimpleSessionView: View {
             "\(Int(session.plannedMinutes)) minute hot class. Hydrate before, not during. Counts as recovery for the lifts around it."
         case .strength:
             ""
-        }
-    }
-
-    private var rpeWord: String {
-        switch rpe {
-        case ..<3: "very easy"
-        case ..<5: "easy"
-        case ..<7: "moderate"
-        case ..<9: "hard"
-        default: "all out"
         }
     }
 

@@ -203,7 +203,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Apple Health")
                 } footer: {
-                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health unless your watch recorded them. Syncs whenever Cadence opens.")
+                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. Syncs whenever Cadence opens.")
                 }
 
                 Section {

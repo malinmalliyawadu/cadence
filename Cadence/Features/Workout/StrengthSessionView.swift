@@ -13,7 +13,7 @@ struct StrengthSessionView: View {
     @Environment(\.dismiss) private var dismiss
     /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
     @State private var expanded: Int?
-    @State private var confirmFinish = false
+    @State private var showFinish = false
     @FocusState private var focus: StepperField?
 
     var body: some View {
@@ -97,10 +97,8 @@ struct StrengthSessionView: View {
                 }
             }
         }
-        .confirmationDialog("Finish session?", isPresented: $confirmFinish, titleVisibility: .visible) {
-            Button("Finish with \(session.loggedSetCount) of \(session.plannedSetCount) sets") { finish() }
-        } message: {
-            Text("Unlogged sets are left out of progression. You can reopen the session later.")
+        .sheet(isPresented: $showFinish) {
+            FinishSessionSheet(session: session) { finish(rpe: $0) }
         }
         .onAppear {
             if expanded == nil { expanded = session.orderedExercises.first { !$0.isComplete }?.order }
@@ -163,10 +161,10 @@ struct StrengthSessionView: View {
             let allLogged = session.loggedSetCount >= session.plannedSetCount
             Group {
                 if allLogged {
-                    Button("Finish session", systemImage: "checkmark") { finish() }
+                    Button("Finish session", systemImage: "checkmark") { showFinish = true }
                         .buttonStyle(.primary)
                 } else {
-                    Button("Finish session", systemImage: "checkmark") { confirmFinish = true }
+                    Button("Finish session", systemImage: "checkmark") { showFinish = true }
                         .buttonStyle(.secondary)
                 }
             }
@@ -187,7 +185,7 @@ struct StrengthSessionView: View {
     }
 
     private var loggedSummary: String {
-        let effort = "Session RPE \(String(format: "%.1f", session.rpe ?? 0)), \(Format.load(session.load)) load units."
+        let effort = "Effort \(Format.kg(session.rpe ?? 0)), \(Format.load(session.load)) load units."
         if session.importKey != nil {
             return "Imported from your previous log, \(Format.load(session.load)) load units. Reps in reserve were assumed to be 2."
         }
@@ -227,9 +225,9 @@ struct StrengthSessionView: View {
         }
     }
 
-    private func finish() {
+    private func finish(rpe: Double) {
         rest.stop(for: session)
-        coordinator.complete(session, in: context)
+        coordinator.complete(session, rpe: rpe, in: context)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await health.record(session, in: context, coordinator: coordinator) }
     }

@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct EmptyPlanView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
+    @Environment(HealthKitService.self) private var health
     @Query private var sessions: [TrainingSession]
     @State private var showImporter = false
     @State private var importing = false
@@ -24,7 +25,7 @@ struct EmptyPlanView: View {
             VStack(alignment: .leading, spacing: 10) {
                 DisplayText(text: "This week is unwritten.")
                 Text(sessions.isEmpty
-                     ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve. Connect Apple Health in settings so runs and classes log themselves."
+                     ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve.\(health.isEnabled ? "" : " Connect Apple Health in settings so runs and classes log themselves.")"
                      : "Plan the week and the lifts pick up exactly where your last session left off.")
                     .font(.system(size: 17))
                     .foregroundStyle(Palette.inkSecondary)
