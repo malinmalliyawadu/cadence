@@ -7,12 +7,15 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  96 tests in under a second. Everything that decides what to train lives here, never in views.
+  101 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
   - `Strength/SwapRanking.swift` - orders replacements for a movement: same muscle and pattern, then the focus, then familiarity.
   - `Strength/StrengthWorkoutRecord.swift` - a finished session as a Health workout: span from the logged sets, active energy from MET by session RPE.
+  - `Strength/WarmUp.swift` - the warm-up ramp before a movement's working sets, modelled on the athlete's own log
+    (one set of 8 at 60%, plus 3 at 85% from 100 kg; none for raises, calves, forearms, core, hip ab/adduction,
+    dumbbell isolation or bodyweight). The real-export smoke test checks it agrees with what was actually warmed up for.
   - `Strength/RestTimer.swift` - rest between sets by role and rep range (the planner's session minutes use the same
     numbers), and the wall-clock countdown the app, the Live Activity and the notification all read.
   - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
@@ -117,6 +120,8 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
 
 - Weights are kilograms, per hand for dumbbells, added load for bodyweight movements.
 - Dates: the week starts Monday (`PlanCoordinator.calendar`). Day indices in preferences are 0 = Monday.
+- Warm-ups are not `SetRecord`s: they are worked out from the first working set's weight (`PlannedExercise.warmUps`),
+  ticked off in `warmUpsDone`, and shown only until that first set is logged. They never reach progression, load or Health.
 - A `SetRecord` with no `completedAt` is a planned set: the athlete changed that set's weight or reps ahead of time. `PlannedExercise.target(at:)` resolves what a set is planned at.
 - `SetRecord.rir` is optional and set only on a movement's final set. Imported sets have none; progression assumes the target and the UI says so. Imports are idempotent via `importKey`.
 - Health workouts match by day and modality: complete a planned session, enrich a completed one, else create.
