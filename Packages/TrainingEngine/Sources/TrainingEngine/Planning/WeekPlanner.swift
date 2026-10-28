@@ -123,6 +123,8 @@ public struct WeekPlan: Sendable, Hashable {
     public let readiness: Readiness
     public let notes: [String]
     public let score: Double
+    /// What was asked for but did not fit the days available, cheapest to lose first.
+    public let leftOut: [PlannedSession]
 
     public var estimatedLoad: Double { days.map(\.totalLoad).reduce(0, +) }
     public var sessions: [PlannedSession] { days.flatMap(\.sessions) }
@@ -169,29 +171,25 @@ public enum WeekPlanner {
         })
         let availableDays = (0..<7).filter { !prefs.unavailableDays.contains($0) }
 
-        var best: (assignment: [Int], score: Double)?
-        assign(sessions: sessions, availableDays: availableDays, prefs: prefs) { assignment in
-            let score = score(assignment: assignment, sessions: sessions, prefs: prefs, forecasts: forecastByIndex)
-            if best == nil || score > best!.score { best = (assignment, score) }
-        }
-
-        let assignment = best?.assignment ?? Array(repeating: 0, count: sessions.count)
-        if best == nil, !sessions.isEmpty {
-            notes.append("Not enough available days for everything you asked for. Sessions were stacked onto the first day; free up a day or two.")
+        let best = bestFit(sessions: sessions, availableDays: availableDays, prefs: prefs, forecasts: forecastByIndex)
+        let placed = best.placed.map { sessions[$0] }
+        let leftOut = sessions.indices.filter { !best.placed.contains($0) }.map { sessions[$0] }.sorted { keepValue($0) < keepValue($1) }
+        if !leftOut.isEmpty {
+            notes.append("Not enough days left this week for everything, so the plan leaves out \(list(leftOut.map(describe))).")
         }
 
         var days: [PlannedDay] = []
         for index in 0..<7 {
             let date = calendar.date(byAdding: .day, value: index, to: calendar.startOfDay(for: prefs.weekStart)) ?? prefs.weekStart
-            let todays = zip(sessions, assignment).filter { $0.1 == index }.map(\.0).sorted { order($0) < order($1) }
+            let todays = zip(placed, best.assignment).filter { $0.1 == index }.map(\.0).sorted { order($0) < order($1) }
             days.append(PlannedDay(date: date, dayIndex: index, sessions: todays, forecast: forecastByIndex[index]))
         }
 
-        if let long = sessions.first(where: { $0.kind == .run(.long) }), let day = assignment[safe: sessions.firstIndex(of: long) ?? -1], let forecast = forecastByIndex[day] {
-            notes.append("Long run on \(weekdayName(for: day, prefs: prefs, calendar: calendar)): \(forecast.condition.displayName.lowercased()), \(Int(forecast.tempMaxC.rounded()))°, \(Int((forecast.precipitationProbability * 100).rounded()))% rain.")
+        if let long = placed.firstIndex(where: { $0.kind == .run(.long) }), let forecast = forecastByIndex[best.assignment[long]] {
+            notes.append("Long run on \(weekdayName(for: best.assignment[long], prefs: prefs, calendar: calendar)): \(forecast.condition.displayName.lowercased()), \(Int(forecast.tempMaxC.rounded()))°, \(Int((forecast.precipitationProbability * 100).rounded()))% rain.")
         }
 
-        return WeekPlan(weekStart: prefs.weekStart, days: days, targetLoad: targetLoad, readiness: readiness, notes: notes, score: best?.score ?? 0)
+        return WeekPlan(weekStart: prefs.weekStart, days: days, targetLoad: targetLoad, readiness: readiness, notes: notes, score: best.score, leftOut: leftOut)
     }
 
     // MARK: Load budgeting
@@ -270,6 +268,87 @@ public enum WeekPlanner {
     }
 
     // MARK: Search
+
+    /// The best week that fits. Everything is placed when it can be. When it cannot, because the
+    /// week is planned late or too many days are off, the fewest sessions are left out, and of the
+    /// ways to do that the best score wins once each left-out session's value is taken off. A
+    /// session never lands on an unavailable day.
+    private static func bestFit(
+        sessions: [PlannedSession],
+        availableDays: [Int],
+        prefs: PlannerPreferences,
+        forecasts: [Int: DayForecast]
+    ) -> (placed: [Int], assignment: [Int], score: Double) {
+        var best: (placed: [Int], assignment: [Int], score: Double)?
+        for leaving in 0...sessions.count {
+            var tried = Set<[String]>()
+            for left in combinations(of: sessions.count, choosing: leaving) {
+                // Identical sessions (two easy runs, two yoga classes) are interchangeable: leaving out either is the same week.
+                guard tried.insert(left.map { signature(sessions[$0]) }).inserted else { continue }
+                let placed = sessions.indices.filter { !left.contains($0) }
+                let subset = placed.map { sessions[$0] }
+                let cost = left.map { keepValue(sessions[$0]) }.reduce(0, +)
+                assign(sessions: subset, availableDays: availableDays, prefs: prefs) { assignment in
+                    let total = score(assignment: assignment, sessions: subset, prefs: prefs, forecasts: forecasts) - cost
+                    if best == nil || total > best!.score { best = (placed, assignment, total) }
+                }
+            }
+            if let best { return best }
+        }
+        return ([], [], 0)
+    }
+
+    /// What losing a session costs, on the scoring scale. Lifting is the core of the week, the long run
+    /// next; an easy run is the first to go.
+    private static func keepValue(_ session: PlannedSession) -> Double {
+        switch session.kind {
+        case .strength: 80
+        case .run(.long): 60
+        case .run(.quality): 40
+        case .yoga: 30
+        case .run(.easy): 20
+        }
+    }
+
+    private static func signature(_ session: PlannedSession) -> String {
+        switch session.kind {
+        case .strength(let index, _, _): "strength-\(index)"
+        case .run(let kind): "run-\(kind.rawValue)"
+        case .yoga: "yoga"
+        }
+    }
+
+    /// Every way to choose `k` of `0..<n`, as ascending index lists.
+    private static func combinations(of n: Int, choosing k: Int) -> [[Int]] {
+        guard k > 0 else { return [[]] }
+        guard k <= n else { return [] }
+        var result: [[Int]] = []
+        var current: [Int] = []
+        func recurse(_ start: Int) {
+            if current.count == k { result.append(current); return }
+            for index in start..<n where n - index >= k - current.count {
+                current.append(index)
+                recurse(index + 1)
+                current.removeLast()
+            }
+        }
+        recurse(0)
+        return result
+    }
+
+    /// "the long run", "the posterior chain lower body session".
+    private static func describe(_ session: PlannedSession) -> String {
+        switch session.kind {
+        case .strength(_, let half, let focus): "the \(focus.displayName.lowercased()) \(half.displayName.lowercased()) body session"
+        case .run(let kind): "the \(kind.displayName.lowercased())"
+        case .yoga: "hot yoga"
+        }
+    }
+
+    private static func list(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + items.last!
+    }
 
     /// Per-session facts hoisted out of the scoring loop so scoring allocates nothing.
     private struct Meta {
@@ -426,11 +505,5 @@ public enum WeekPlanner {
         formatter.calendar = calendar
         formatter.dateFormat = "EEEE"
         return formatter.string(from: date)
-    }
-}
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }

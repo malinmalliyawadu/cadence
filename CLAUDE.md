@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  101 tests in under a second. Everything that decides what to train lives here, never in views.
+  104 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -117,6 +117,9 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   after lifting and yoga. Then every day assignment is scored: rest day, U/L alternation and
   spacing, lower days away from hard runs, one run a day, weather for runs (long run weighted
   most), yoga on wet days and after legs. Pruning keeps the busiest week around a second in debug.
+  When the days left cannot hold everything (a week planned on Thursday), the fewest sessions are
+  left out, valued lift over long run over quality run over yoga over easy run against the score,
+  and a note says which. Nothing is ever placed on an unavailable or past day.
 - **The generator prefers movements the athlete has logged.** Malin's gym is Hammer Strength,
   machines, cables and dumbbells; the textbook barbell opener is only chosen when it is familiar
   or nothing familiar fits. `leg-press` is a compound for this reason.
