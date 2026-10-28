@@ -292,6 +292,7 @@ struct ExerciseCard: View {
             if isExpanded {
                 VStack(alignment: .leading, spacing: 14) {
                     rationale
+                    if showsWarmUps { warmUpList }
                     setsHeader
                     setList
                     if isEditable { setControls }
@@ -343,6 +344,69 @@ struct ExerciseCard: View {
             .foregroundStyle(Palette.inkSecondary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Warm-ups lead the movement until its first working set is logged; after that they have done their job.
+    private var showsWarmUps: Bool { isEditable && exercise.completedSets.isEmpty && !exercise.warmUps.isEmpty }
+
+    private var warmUpList: some View {
+        let ramp = exercise.warmUps
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Warm-up").font(.rowTitle).foregroundStyle(Palette.ink)
+                Spacer()
+                Text("Not counted").font(.label).foregroundStyle(Palette.inkTertiary)
+            }
+            .padding(.bottom, 6)
+            ForEach(ramp.indices, id: \.self) { index in warmUpRow(ramp[index], at: index) }
+        }
+    }
+
+    /// A warm-up set, outlined rather than filled so it reads lighter than a working set. Tapping
+    /// ticks it and those before it off; tapping a ticked one undoes it and those after it.
+    private func warmUpRow(_ set: WarmUpSet, at index: Int) -> some View {
+        let done = index < exercise.warmUpsDone
+        return Button {
+            coordinator.setWarmUpsDone(done ? index : index + 1, for: exercise, in: context)
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            HStack(spacing: 0) {
+                Group {
+                    if done {
+                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.accent)
+                    } else {
+                        Text("W").font(.label).foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+                .frame(width: 28, alignment: .leading)
+                Text("\(Format.kg(set.weightKg)) kg").font(.numeralSmall)
+                    .foregroundStyle(done ? Palette.ink : Palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(set.reps) reps").font(.numeralSmall)
+                    .foregroundStyle(done ? Palette.ink : Palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The working rows' RIR column, so weights and reps line up across both lists.
+                Color.clear.frame(width: 52, height: 1)
+                Image(systemName: done ? "arrow.uturn.backward" : "checkmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkTertiary)
+                    .padding(.trailing, 14)
+                    .frame(width: 58, height: 44, alignment: .trailing)
+            }
+            .padding(.leading, 14)
+            .frame(minHeight: 48)
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Palette.stroke, lineWidth: 1)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Warm-up \(index + 1), \(Format.kg(set.weightKg)) kilograms for \(set.reps) reps")
+        .accessibilityValue(done ? "Done" : "Not done")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(done ? "Undoes this warm-up" : "Ticks this warm-up off")
     }
 
     private var setsHeader: some View {

@@ -162,6 +162,8 @@ final class PlannedExercise {
     var rationale: String
     var session: TrainingSession?
     @Relationship(deleteRule: .cascade, inverse: \SetRecord.exercise) var sets: [SetRecord]
+    /// Warm-up sets ticked off, from the lightest. Warm-ups are never logged as sets.
+    var warmUpsDone: Int = 0
 
     init(prescription: ExercisePrescription, order: Int) {
         exerciseID = prescription.exercise.id
@@ -210,6 +212,12 @@ final class PlannedExercise {
         if let planned = record(at: index) { return (planned.weightKg, planned.reps) }
         if let previous = completedSets.last(where: { $0.index < index }) { return (previous.weightKg, previous.reps) }
         return (prescribedWeightKg ?? max(0, exercise?.startingWeightKg ?? 0), repLower)
+    }
+
+    /// The ramp to the first working set, so changing that set's weight moves the warm-ups with it.
+    var warmUps: [WarmUpSet] {
+        guard let exercise else { return [] }
+        return WarmUp.sets(for: exercise, workingWeightKg: target(at: 0).weightKg)
     }
 
     /// What the engine needs to progress this movement next time.
