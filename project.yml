@@ -82,6 +82,7 @@ targets:
           - "CadenceWatch.entitlements"
           - "Info.plist"
       - path: Shared/LiveWorkout.swift
+      - path: Cadence/Resources/AppIcon.icon
       - path: Cadence/Design/Formatters.swift
       - path: Cadence/Design/Palette.swift
       - path: Cadence/Design/Typography.swift
