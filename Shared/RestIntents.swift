@@ -22,8 +22,3 @@ struct SkipRestIntent: LiveActivityIntent {
         return .result()
     }
 }
-
-/// How much one tap of plus or minus changes the rest, everywhere it can be changed.
-enum RestTimerStep {
-    static let seconds: Double = 30
-}

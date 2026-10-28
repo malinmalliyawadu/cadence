@@ -12,7 +12,11 @@ import UserNotifications
 @MainActor
 @Observable
 final class RestTimerService {
-    private(set) var state: RestActivityAttributes.ContentState?
+    private(set) var state: RestActivityAttributes.ContentState? {
+        didSet { if state != oldValue { onChange?(state) } }
+    }
+    /// Told whenever the rest changes, so a live workout on the watch counts down the same rest.
+    var onChange: ((RestActivityAttributes.ContentState?) -> Void)?
     private(set) var sessionID: UUID?
     /// Whether the session screen is showing the rest, so the notification stays quiet there.
     var isOnScreen = false {
@@ -30,13 +34,8 @@ final class RestTimerService {
     func isResting(in session: TrainingSession) -> Bool { state != nil && sessionID == session.id }
 
     func start(seconds: Double, before exercise: PlannedExercise, set index: Int, in session: TrainingSession) {
-        let target = exercise.target(at: index)
-        let state = RestActivityAttributes.ContentState(
-            timer: RestTimer(seconds: seconds),
-            movement: exercise.name,
-            setLabel: "Set \(index + 1) of \(exercise.targetSets)",
-            target: "\(Format.kg(target.weightKg)) kg × \(target.reps)"
-        )
+        let set = LiveSet(exercise, set: index)
+        let state = RestActivityAttributes.ContentState(timer: RestTimer(seconds: seconds), movement: set.movement, setLabel: set.setLabel, target: set.target)
         self.state = state
         sessionID = session.id
         scheduleFeedback()

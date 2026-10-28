@@ -102,9 +102,18 @@ struct UpNextCard: View {
     }
 
     /// The movements as a strip of thumbnails, the focus ones first in the order they are done.
+    /// As many as fit the card's width, so the strip never pushes the page wider than the screen.
     private var movements: some View {
         let exercises = session.orderedExercises.compactMap(\.exercise)
-        let shown = exercises.prefix(5)
+        return ViewThatFits(in: .horizontal) {
+            ForEach([5, 4, 3], id: \.self) { count in movementStrip(exercises, showing: count) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(exercises.map(\.name).formatted(.list(type: .and)))
+    }
+
+    private func movementStrip(_ exercises: [Exercise], showing count: Int) -> some View {
+        let shown = exercises.prefix(count)
         return HStack(spacing: 8) {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, exercise in
                 MovementThumbnail(exercise: exercise, size: 52)
@@ -117,8 +126,6 @@ struct UpNextCard: View {
                     .background(Palette.raised, in: .rect(cornerRadius: 52 * 0.22, style: .continuous))
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(exercises.map(\.name).formatted(.list(type: .and)))
     }
 
     private func runTarget(_ target: RunTarget) -> some View {
