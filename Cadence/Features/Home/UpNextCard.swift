@@ -13,9 +13,10 @@ struct UpNextCard: View {
     @Environment(PlanCoordinator.self) private var coordinator
 
     private var isStarted: Bool { session.modality == .strength && session.loggedSetCount > 0 }
+    private static let padding: CGFloat = 18
 
     var body: some View {
-        Card(isActive: isToday, cornerRadius: 26, padding: 18) {
+        Card(isActive: isToday, cornerRadius: 26, padding: Self.padding) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 12) {
                     SessionTile(symbol: session.modality.symbolName, tint: session.modality.tint, size: 44)
@@ -140,18 +141,26 @@ struct UpNextCard: View {
                     Text("Run by feel").font(.rowTitle).foregroundStyle(Palette.ink)
                 }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Chip(symbol: "heart", text: target.heartRate.map { "Zone \(target.zone), \(Format.heartRate($0))" } ?? "Zone \(target.zone)", tint: Palette.rose)
-                    if let forecast { weatherChips(forecast) }
-                }
+            chipRow {
+                Chip(symbol: "heart", text: target.heartRate.map { "Zone \(target.zone), \(Format.heartRate($0))" } ?? "Zone \(target.zone)", tint: Palette.rose)
+                if let forecast { weatherChips(forecast) }
             }
-            .scrollClipDisabled()
         }
     }
 
     private func weather(_ forecast: DayForecast) -> some View {
-        HStack(spacing: 8) { weatherChips(forecast) }
+        chipRow { weatherChips(forecast) }
+    }
+
+    /// Chips that scroll rather than squeeze, so a wet, windy day never truncates. The row runs
+    /// out to just inside the card's border, where it clips, and rests in line with the content.
+    private func chipRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        let bleed = Self.padding - 1.5 // the active border's width
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) { content() }
+        }
+        .contentMargins(.horizontal, bleed, for: .scrollContent)
+        .padding(.horizontal, -bleed)
     }
 
     @ViewBuilder

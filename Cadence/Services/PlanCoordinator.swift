@@ -511,12 +511,19 @@ final class PlanCoordinator {
         exercise.exerciseID = replacement.id
         exercise.prescribedWeightKg = result.weightKg
         exercise.rationale = result.rationale
+        exercise.warmUpsDone = 0
         for set in exercise.sets { context.delete(set) }
         exercise.sets = []
         try? context.save()
     }
 
     // MARK: Set plan
+
+    /// Ticks warm-ups off up to `count`, or back to it when undoing one.
+    func setWarmUpsDone(_ count: Int, for exercise: PlannedExercise, in context: ModelContext) {
+        exercise.warmUpsDone = min(max(0, count), exercise.warmUps.count)
+        try? context.save()
+    }
 
     /// Logs the set at `index`, keeping any planned record so the row does not move.
     func logSet(_ exercise: PlannedExercise, at index: Int, weightKg: Double, reps: Int, rir: Int?, in context: ModelContext) {
