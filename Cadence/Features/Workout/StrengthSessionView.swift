@@ -89,7 +89,7 @@ struct StrengthSessionView: View {
                             dismiss()
                         }
                     } label: { Image(systemName: "ellipsis") }
-                    // Toolbar controls stay white like the back button; blue marks what is active.
+                    // Toolbar controls stay white like the back button; violet marks what is active.
                     .tint(Palette.ink)
                 }
             } else if session.status == .completed, !session.exercises.isEmpty {
@@ -302,7 +302,7 @@ struct ExerciseCard: View {
             }
         }
         .padding(16)
-        .surface(cornerRadius: 22, isActive: isExpanded && isEditable && !exercise.isComplete)
+        .surface(cornerRadius: 22)
         .onAppear(perform: prime)
         .onChange(of: exercise.exerciseID) { editing = nil; prime() }
         .onChange(of: selected) { prime() }

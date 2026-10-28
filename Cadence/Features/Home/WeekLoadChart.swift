@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Monday to Sunday as hatched bars: solid for load already logged, dashed for what is still
-/// planned. Today is the bright one, with its number pinned above it.
+/// planned. Today is the mint one, with its number pinned above it.
 struct WeekLoadChart: View {
     struct Day: Identifiable {
         let date: Date
@@ -67,7 +67,7 @@ struct WeekLoadChart: View {
                 ForEach(days) { day in
                     Text(Format.shortWeekday.string(from: day.date))
                         .font(.system(size: 12, weight: calendar.isDate(day.date, inSameDayAs: today) ? .semibold : .medium))
-                        .foregroundStyle(calendar.isDate(day.date, inSameDayAs: today) ? Palette.ink : Palette.inkTertiary)
+                        .foregroundStyle(calendar.isDate(day.date, inSameDayAs: today) ? Palette.today : Palette.inkTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -84,12 +84,12 @@ struct WeekLoadChart: View {
                 ValueCallout(text: Format.load(day.total)).padding(.bottom, 6)
             }
             if day.planned > 0 {
-                HatchedBar(isHighlighted: isToday, isPlanned: true)
+                HatchedBar(isToday: isToday, isPlanned: true)
                     .frame(height: max(CGFloat(day.planned) * scale, 16))
             }
             if day.planned > 0, day.logged > 0 { Spacer().frame(height: 3) }
             if day.logged > 0 {
-                HatchedBar(isHighlighted: isToday)
+                HatchedBar(isToday: isToday)
                     .frame(height: max(CGFloat(day.logged) * scale, 16))
             }
         }

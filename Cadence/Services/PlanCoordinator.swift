@@ -165,7 +165,8 @@ final class PlanCoordinator {
 
         let profile = profile(in: context)
         let start = weekStart(containing: date)
-        let today = calendar.startOfDay(for: date)
+        // The Week tab passes the week's Monday; days already gone are never planned on.
+        let today = max(calendar.startOfDay(for: date), calendar.startOfDay(for: .now))
 
         // 1. Clear this week's untouched sessions. A lift with sets logged is under way, so it stays.
         let weekSessions = sessions(weekStart: start, in: context)
@@ -173,7 +174,9 @@ final class PlanCoordinator {
         for session in weekSessions where untouched(session) {
             context.delete(session)
         }
-        let kept = weekSessions.filter { !untouched($0) }
+        // What fills the week: sessions done or under way, and those still to come. One planned on a
+        // day already gone and never started was missed, not trained, so it does not use up the week.
+        let kept = weekSessions.filter { !untouched($0) && ($0.status == .completed || $0.loggedSetCount > 0 || $0.date >= today) }
 
         // 2. Work out what is left to place this week.
         var prefs = profile.plannerPreferences(weekStart: start)

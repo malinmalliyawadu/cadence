@@ -76,7 +76,7 @@ struct LoadMixCard: View {
             .chartForegroundStyleScale([
                 Modality.strength.displayName: Palette.strength,
                 Modality.running.displayName: Palette.sky,
-                Modality.yoga.displayName: Palette.violet,
+                Modality.yoga.displayName: Palette.orchid,
             ])
             .chartXAxis { dayAxis(window: window) }
             .chartYAxis {

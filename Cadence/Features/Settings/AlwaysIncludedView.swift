@@ -62,7 +62,7 @@ struct AlwaysIncludedView: View {
 
     private func row(_ exercise: Exercise, isIncluded: Bool) -> some View {
         Button { toggle(exercise, isIncluded: isIncluded) } label: {
-            Card(isActive: isIncluded, cornerRadius: 18, padding: 14) {
+            Card(cornerRadius: 18, padding: 14) {
                 HStack(alignment: .center, spacing: 12) {
                     MovementThumbnail(exercise: exercise, size: 52)
                     VStack(alignment: .leading, spacing: 4) {

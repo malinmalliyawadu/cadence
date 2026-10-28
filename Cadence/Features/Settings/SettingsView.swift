@@ -62,7 +62,7 @@ struct SettingsView: View {
                             }
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
-                            .foregroundStyle(off ? Palette.inkTertiary : Palette.ink)
+                            .foregroundStyle(off ? Palette.inkTertiary : Palette.onAccent)
                             .background(off ? Color.clear : Palette.accent, in: .capsule)
                             .overlay(Capsule().strokeBorder(Palette.hairline))
                             .buttonStyle(.plain)

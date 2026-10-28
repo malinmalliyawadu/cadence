@@ -1,9 +1,9 @@
 import SwiftUI
 import TrainingEngine
 
-/// The rest between sets, pinned under the session while it runs: the countdown in blue, the set
-/// it leads to, and buttons to take or add half a minute or skip it. When it runs out the card
-/// takes the accent outline and counts the time since, until the next set is logged.
+/// The rest between sets, pinned under the session while it runs: the countdown in violet, the set
+/// it leads to, and buttons to take or add half a minute or skip it. When it runs out it says
+/// "Rest over" in violet and counts the time since, until the next set is logged.
 struct RestCard: View {
     let state: RestActivityAttributes.ContentState
     let onAdjust: (Double) -> Void
@@ -58,7 +58,7 @@ struct RestCard: View {
                     .truncationMode(.middle)
             }
             .padding(16)
-            .surface(cornerRadius: 22, isActive: isOver)
+            .surface(cornerRadius: 22)
         }
     }
 }

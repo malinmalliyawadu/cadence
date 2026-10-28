@@ -21,10 +21,9 @@ extension View {
     }
 }
 
-/// A flat card with a hairline edge. `isActive` swaps the hairline
-/// for the accent, the way the set being logged is outlined.
+/// A flat card, no edge: the indigo surface against the black is the whole of it. What is active
+/// says so with its content (the violet button, the set being logged), never with an outline.
 struct Card<Content: View>: View {
-    var isActive = false
     var cornerRadius: CGFloat = 22
     var padding: CGFloat = 16
     @ViewBuilder var content: Content
@@ -33,20 +32,13 @@ struct Card<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .surface(cornerRadius: cornerRadius, isActive: isActive)
+            .surface(cornerRadius: cornerRadius)
     }
 }
 
 extension View {
-    func surface(cornerRadius: CGFloat = 22, isActive: Bool = false) -> some View {
-        background {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Palette.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(isActive ? Palette.accent : Palette.hairline, lineWidth: isActive ? 1.5 : 1)
-                }
-        }
+    func surface(cornerRadius: CGFloat = 22) -> some View {
+        background(Palette.surface, in: .rect(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
@@ -198,7 +190,7 @@ struct ChipPicker<Value: Hashable>: View {
                 } label: {
                     Text(label)
                         .font(.system(size: 15, weight: .medium).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.white : Palette.inkSecondary)
+                        .foregroundStyle(isSelected ? Palette.onAccent : Palette.inkSecondary)
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background {
                             Capsule()
@@ -215,16 +207,16 @@ struct ChipPicker<Value: Hashable>: View {
     }
 }
 
-/// The one blue capsule on a screen.
+/// The one violet capsule on a screen, its label in the icon's indigo.
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundStyle(isEnabled ? Palette.onAccent : Palette.inkTertiary)
             .frame(maxWidth: .infinity, minHeight: 54)
-            .background(Palette.accent.opacity(isEnabled ? 1 : 0.35), in: .capsule)
+            .background(isEnabled ? Palette.accent : Palette.raised, in: .capsule)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)

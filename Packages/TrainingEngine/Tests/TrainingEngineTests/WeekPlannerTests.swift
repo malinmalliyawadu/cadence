@@ -47,6 +47,7 @@ struct WeekPlannerTests {
     func defaultWeek() {
         let plan = plan(prefs: PlannerPreferences(weekStart: monday))
         #expect(plan.sessions.count == 7)
+        #expect(plan.leftOut.isEmpty)
         let halves = strengthDays(plan).map(\.1)
         #expect(halves == [.upper, .lower, .upper, .lower])
         #expect(plan.days.contains { $0.isRest })
@@ -132,6 +133,35 @@ struct WeekPlannerTests {
         let plan = plan(prefs: PlannerPreferences(weekStart: monday, easyRuns: 1, yogaSessions: 1, allowTwoADays: false))
         #expect(plan.days.allSatisfy { $0.sessions.count <= 1 })
         #expect(plan.sessions.count == 7)
+    }
+
+    @Test("Planned on a Thursday, the week fits what it can into the days left and says what it left out")
+    func midWeek() {
+        // Monday to Wednesday have gone. Four lifts need four days and the long run cannot share one.
+        let plan = plan(prefs: PlannerPreferences(weekStart: monday, unavailableDays: [0, 1, 2]))
+        #expect(plan.days.prefix(3).allSatisfy { $0.isRest }, "placed on a past day")
+        #expect(plan.leftOut.count == 1, "left out \(plan.leftOut.map(\.title))")
+        #expect(plan.sessions.count + plan.leftOut.count == 7)
+        #expect(plan.days.allSatisfy { $0.sessions.filter(\.isHard).count <= 1 })
+        #expect(plan.notes.contains { $0.hasPrefix("Not enough days left") }, "notes \(plan.notes)")
+    }
+
+    @Test("When only one session fits, the lift is the one kept")
+    func keepsTheLift() {
+        // Sunday alone, no two-a-days: of a lift, an easy run and yoga, the lift stays.
+        let slots = Array(strength.prefix(1))
+        let prefs = PlannerPreferences(weekStart: monday, strengthSessions: 1, easyRuns: 1, includeLongRun: false, yogaSessions: 1, unavailableDays: Set(0..<6), allowTwoADays: false)
+        let plan = WeekPlanner.plan(.init(preferences: prefs, strength: slots, forecasts: (0..<7).map { forecast($0) }, load: emptyLoad(), calendar: calendar))
+        #expect(plan.sessions.map(\.modality) == [.strength])
+        #expect(plan.days[6].sessions.count == 1)
+        #expect(plan.leftOut.count == 2)
+    }
+
+    @Test("With no day free, nothing is placed and everything is left out")
+    func noDaysLeft() {
+        let plan = plan(prefs: PlannerPreferences(weekStart: monday, unavailableDays: Set(0..<7)))
+        #expect(plan.sessions.isEmpty)
+        #expect(plan.leftOut.count == 7)
     }
 
     @Test("A busy week still produces a complete plan quickly")
