@@ -50,7 +50,7 @@ struct StartView: View {
                         .font(WatchType.title)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(CapsuleButtonStyle(fill: Palette.accent, ink: .white))
+                .buttonStyle(CapsuleButtonStyle(fill: Palette.accent, ink: Palette.onAccent))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -211,7 +211,7 @@ struct SetBlock: View {
     }
 }
 
-/// The rest counting down, in blue as the thing happening now, with a bar that empties as it runs and
+/// The rest counting down, in violet as the thing happening now, with a bar that empties as it runs and
 /// the same +30 s and Skip as the phone.
 struct RestBlock: View {
     @Environment(WorkoutManager.self) private var workout

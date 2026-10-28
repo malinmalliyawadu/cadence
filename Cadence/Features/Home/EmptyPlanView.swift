@@ -15,13 +15,9 @@ struct EmptyPlanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Spacer()
-            ProgressRing(progress: 0) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .frame(maxWidth: 220)
-            .frame(maxWidth: .infinity)
+            OrbitMark(drawsIn: true)
+                .frame(maxWidth: 168)
+                .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
                 DisplayText(text: "This week is unwritten.")
                 Text(sessions.isEmpty

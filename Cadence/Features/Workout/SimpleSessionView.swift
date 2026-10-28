@@ -73,7 +73,7 @@ struct SimpleSessionView: View {
                             dismiss()
                         }
                     } label: { Image(systemName: "ellipsis") }
-                    // Toolbar controls stay white like the back button; blue marks what is active.
+                    // Toolbar controls stay white like the back button; violet marks what is active.
                     .tint(Palette.ink)
                 }
             } else if session.status == .completed {
@@ -156,7 +156,7 @@ struct SimpleSessionView: View {
     private func targetCard(_ target: RunTarget) -> some View {
         let done = session.status == .completed
         let zones = coordinator.profile(in: context).heartRateZones
-        return Card(isActive: !done) {
+        return Card {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(done ? "Average pace" : target.kind == .quality ? "Threshold pace, 20 minute block" : "Target pace")

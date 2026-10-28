@@ -129,7 +129,7 @@ struct DayCard: View {
             VStack(spacing: 2) {
                 Text(Format.shortWeekday.string(from: date))
                     .font(.label)
-                    .foregroundStyle(isToday ? Palette.accent : Palette.inkSecondary)
+                    .foregroundStyle(isToday ? Palette.today : Palette.inkSecondary)
                 Text(Format.dayNumber.string(from: date))
                     .font(.numeral)
                     .foregroundStyle(Palette.ink)
@@ -186,7 +186,7 @@ struct DayCard: View {
             }
         }
         .padding(16)
-        .surface(cornerRadius: 22, isActive: isToday)
+        .surface(cornerRadius: 22)
     }
 }
 

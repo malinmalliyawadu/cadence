@@ -113,7 +113,7 @@ struct ExerciseDetailView: View {
 
                     Card { MovementVisual(exercise: exercise) }
 
-                    Card(isActive: true) {
+                    Card {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .center, spacing: 10) {
                                 IconDisc(symbol: "arrow.up.right", tint: Palette.accent)

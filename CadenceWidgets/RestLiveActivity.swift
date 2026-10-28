@@ -4,7 +4,7 @@ import SwiftUI
 import TrainingEngine
 import WidgetKit
 
-/// The rest between sets on the Lock Screen and in the Dynamic Island: the countdown in blue,
+/// The rest between sets on the Lock Screen and in the Dynamic Island: the countdown in violet,
 /// what comes next, and buttons to add rest or skip it. Once the rest runs out the activity goes
 /// stale and says so, counting the time since.
 struct RestLiveActivity: Widget {
@@ -88,7 +88,7 @@ struct RestLockScreenView: View {
     }
 }
 
-/// "Rest", or "Rest over" in blue once it has run out.
+/// "Rest", or "Rest over" in violet once it has run out.
 private struct RestTitle: View {
     let isOver: Bool
 

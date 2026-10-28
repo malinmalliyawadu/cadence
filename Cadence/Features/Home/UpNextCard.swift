@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 import TrainingEngine
 
-/// The top of Home: the session to do next, what it involves, and the one blue button that opens
+/// The top of Home: the session to do next, what it involves, and the one violet button that opens
 /// it. A session already started says how far it got and resumes. A session on a later day is
 /// shown with a quieter button, since there is nothing to start today.
 struct UpNextCard: View {
@@ -16,14 +16,14 @@ struct UpNextCard: View {
     private static let padding: CGFloat = 18
 
     var body: some View {
-        Card(isActive: isToday, cornerRadius: 26, padding: Self.padding) {
+        Card(cornerRadius: 26, padding: Self.padding) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 12) {
                     SessionTile(symbol: session.modality.symbolName, tint: session.modality.tint, size: 44)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(eyebrow)
                             .font(.label)
-                            .foregroundStyle(isToday ? Palette.accent : Palette.inkSecondary)
+                            .foregroundStyle(isToday ? Palette.today : Palette.inkSecondary)
                         Text(Format.minutes(session.plannedMinutes))
                             .font(.label.monospacedDigit())
                             .foregroundStyle(Palette.inkTertiary)
