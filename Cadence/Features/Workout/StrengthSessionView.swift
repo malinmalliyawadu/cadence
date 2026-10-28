@@ -10,6 +10,7 @@ struct StrengthSessionView: View {
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
     @Environment(RestTimerService.self) private var rest
+    @Environment(LiveWorkoutService.self) private var live
     @Environment(\.dismiss) private var dismiss
     /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
     @State private var expanded: Int?
@@ -83,6 +84,7 @@ struct StrengthSessionView: View {
                     Menu {
                         Button("Skip this session", systemImage: "forward.end", role: .destructive) {
                             rest.stop(for: session)
+                            live.discard(session)
                             coordinator.skip(session, in: context)
                             dismiss()
                         }
@@ -107,6 +109,7 @@ struct StrengthSessionView: View {
             expanded = 0
         }
         .onChange(of: session.loggedSetCount) { _, _ in
+            live.progress(in: session)
             // Finishing a movement's last set moves straight on to the next one still to do.
             guard let current = session.orderedExercises.first(where: { $0.order == expanded }), current.isComplete,
                   let next = session.orderedExercises.first(where: { !$0.isComplete }) else { return }
@@ -129,8 +132,16 @@ struct StrengthSessionView: View {
                     if !session.exercises.isEmpty {
                         Chip(symbol: "dumbbell", text: "\(session.plannedSetCount) sets")
                     }
-                    if let heartRate = session.averageHeartRate {
-                        Chip(symbol: "heart", text: "\(Int(heartRate)) bpm")
+                    if live.isRecording(session) {
+                        Chip(symbol: "heart.fill", text: Format.bpm(live.metrics.heartRate), tint: Palette.rose)
+                        Chip(symbol: "flame", text: Format.kcal(live.metrics.activeKilocalories))
+                    } else {
+                        if let heartRate = session.averageHeartRate {
+                            Chip(symbol: "heart", text: Format.bpm(heartRate))
+                        }
+                        if let energy = session.activeKilocalories {
+                            Chip(symbol: "flame", text: Format.kcal(energy))
+                        }
                     }
                     if let rir = session.loggedMeanRIR {
                         Chip(symbol: "gauge.with.dots.needle.50percent", text: "\(String(format: "%.1f", rir)) RIR")
@@ -226,6 +237,7 @@ struct StrengthSessionView: View {
     private func finish(rpe: Double) {
         rest.stop(for: session)
         coordinator.complete(session, rpe: rpe, in: context)
+        live.finish(session)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await health.record(session, in: context, coordinator: coordinator) }
     }

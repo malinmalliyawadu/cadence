@@ -25,6 +25,10 @@ final class TrainingSession {
     var importKey: String?
     /// The HealthKit workout this session was completed from, if any.
     var healthWorkoutID: String?
+    /// Average heart rate over the workout, from Apple Health.
+    var averageHeartRate: Double?
+    /// Active energy over the workout, from Apple Health.
+    var activeKilocalories: Double?
 
     // Strength
     var halfRaw: String?
@@ -32,12 +36,12 @@ final class TrainingSession {
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.session) var exercises: [PlannedExercise]
     /// The recovery multiplier today's loads are prescribed at, so a new reading re-prescribes only when it changes them.
     var recoveryFactor: Double = 1
+    /// Recorded live by the watch, which saves the workout to Health, so finishing waits for that rather than saving an estimate.
+    var recordedLive: Bool = false
 
     // Running
     var runKindRaw: String?
     var distanceKm: Double?
-    /// Average heart rate over the run, from Apple Health.
-    var averageHeartRate: Double?
 
     /// Seconds per kilometre for a finished run.
     var actualPace: Double? {

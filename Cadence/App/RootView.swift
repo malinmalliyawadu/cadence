@@ -6,6 +6,7 @@ struct RootView: View {
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
     @Environment(RestTimerService.self) private var rest
+    @Environment(LiveWorkoutService.self) private var live
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .home
 
@@ -26,6 +27,7 @@ struct RootView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             rest.sync()
+            live.attach(context: context, coordinator: coordinator)
             _ = coordinator.profile(in: context)
             await importFromLaunchArguments()
             await coordinator.refreshForecast(in: context)

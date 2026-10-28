@@ -37,6 +37,12 @@ enum Format {
 
     static func heartRate(_ range: ClosedRange<Int>) -> String { "\(range.lowerBound) to \(range.upperBound) bpm" }
 
+    /// "132 bpm", or a dash before the watch has a reading.
+    static func bpm(_ beatsPerMinute: Double?) -> String { "\(beatsPerMinute.map { "\(Int($0.rounded()))" } ?? "–") bpm" }
+
+    /// "312 kcal" of active energy, or a dash before the watch has a reading.
+    static func kcal(_ kilocalories: Double?) -> String { "\(kilocalories.map { Int($0.rounded()).formatted() } ?? "–") kcal" }
+
     static func temperature(_ c: Double) -> String { "\(Int(c.rounded()))°" }
 
     static func percent(_ fraction: Double) -> String { "\(Int((fraction * 100).rounded()))%" }

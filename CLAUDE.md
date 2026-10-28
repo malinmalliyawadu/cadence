@@ -35,6 +35,10 @@ and the weather, generates every strength session, and progresses load from reps
   - `Services/RestTimerService.swift` - logging a set starts the rest before the next one: a card on the session screen,
     a Live Activity (Lock Screen and Dynamic Island) and a "Rest over" notification, asked for on the first rest.
     Reads the activity back when the app comes to the front, since its +30 s and Skip buttons work in the background.
+  - `Services/LiveWorkoutService.swift` - the watch's live workout, mirrored to the phone. Logging the first set launches
+    the watch app with a strength workout; one started on the watch links to today's session. It shows live bpm and
+    kcal on the session screen, sends the watch the next set and the rest (the watch taps the wrist, so the phone's
+    "Rest over" alert stays quiet meanwhile), and tells it to save on Finish or discard on Skip. No watch, no change.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
   - `Design/MovementArt.swift` - muscle map, movement photos and list thumbnails. The `Movement` and `BodyMap`
@@ -43,6 +47,15 @@ and the weather, generates every strength session, and progresses load from reps
     A movement gets photos only if they show it as programmed. Credits live in Settings, Credits.
 - `CadenceWidgets/` - the widget extension, which draws the rest Live Activity. It compiles `Shared/` (the activity's
   attributes and its button intents, also in the app) and the app's `Palette` and `Typography`.
+- `CadenceWatch/` - the watchOS 26 app, embedded in the iPhone app. `WorkoutManager` runs an `HKWorkoutSession` with a
+  live builder, which is what makes the watch read heart rate every few seconds and work out active energy from it,
+  and mirrors it to the phone. Three pages, as in the Workout app: controls (End, Pause) to the left; the workout in
+  the middle, a status line (elapsed, bpm, kcal) over the rest countdown or the set to lift; Now Playing to the right.
+  It compiles `Shared/LiveWorkout.swift` (the messages both sides send over the mirrored session) and the app's
+  `Formatters`, `Palette` and `Typography`. DEBUG `-demoWorkout` starts a workout fed with what the phone would send
+  (`-demoRest`, `-demoRestOver` add a rest), since mirroring does not work between simulators: paired simulators
+  launch the watch app and record a workout with synthetic heart rate, but the mirrored session reports the phone
+  unreachable. Check the live link on real devices.
 - `project.yml` - XcodeGen spec. `Cadence.xcodeproj` is generated and git-ignored: run `xcodegen generate` after cloning or editing the spec.
 
 ## Build and run
@@ -55,8 +68,8 @@ cd Packages/TrainingEngine && swift test
 
 Sign ad hoc (`CODE_SIGN_IDENTITY="-"`), not `CODE_SIGNING_ALLOWED=NO`: the latter drops the
 HealthKit entitlement and Health access fails with "Missing com.apple.developer.healthkit entitlement".
-Health access reads workouts, effort, heart rate, HRV, sleep and bodyweight, and writes only strength workouts,
-their active energy and their Workout Effort Score. The simulator has no Fitness app, so to exercise the sync there you
+Health access reads workouts, effort, active energy, heart rate, HRV, sleep and bodyweight, and writes only strength
+workouts, their active energy and their Workout Effort Score. The watch app writes the workouts it records. The simulator has no Fitness app, so to exercise the sync there you
 have to write workouts into Health yourself (a throwaway HKWorkoutBuilder call); the app no
 longer ships a sample-workout writer. On the Health Access sheet the simulator logs a non-fatal
 EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; the app survives.
@@ -107,10 +120,13 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
 - A `SetRecord` with no `completedAt` is a planned set: the athlete changed that set's weight or reps ahead of time. `PlannedExercise.target(at:)` resolves what a set is planned at.
 - `SetRecord.rir` is optional and set only on a movement's final set. Imported sets have none; progression assumes the target and the UI says so. Imports are idempotent via `importKey`.
 - Health workouts match by day and modality: complete a planned session, enrich a completed one, else create.
+  A workout carrying a session's ID in `HKMetadataKeyExternalUUID` (Cadence's watch app stamps it) matches that session.
   A strength session with sets logged is still in progress: a watch workout links to it but does not complete it.
 - Finishing a strength session saves a workout to Health, with the rated effort related to it, unless the watch
-  already recorded one that day; then the rating goes on the watch workout. Cadence's own workouts are never read
-  back; a watch workout that arrives later replaces Cadence's copy, and reopening takes back the workout or the rating.
+  already recorded one that day; then the rating goes on the watch workout. A session the watch app recorded live
+  (`recordedLive`) waits up to 90 seconds for the watch's workout before falling back to the estimate. Cadence's own
+  workouts are never read back (the watch app's are, as watch workouts); a watch workout that arrives later replaces
+  Cadence's copy and takes its rating, and reopening takes back the workout or the rating.
 - No em dashes anywhere in copy. Sentence case. Words say what happens ("Log set 3 of 4").
 - Design: true black canvas, flat cards with a hairline edge (no gradients anywhere, Malin finds them tacky), one electric
   blue accent for whatever is active (the session to start, the movement being logged, today's bar,

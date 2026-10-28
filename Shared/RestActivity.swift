@@ -6,15 +6,7 @@ import UserNotifications
 /// The rest between sets as a Live Activity, on the Lock Screen and in the Dynamic Island.
 /// Shared by the app, which starts it, and the widget extension, which draws it.
 struct RestActivityAttributes: ActivityAttributes {
-    struct ContentState: Codable, Hashable, Sendable {
-        var timer: RestTimer
-        /// The movement the next set belongs to.
-        var movement: String
-        /// "Set 3 of 4".
-        var setLabel: String
-        /// "60 kg × 8".
-        var target: String
-    }
+    typealias ContentState = RestDisplay
 
     let sessionID: UUID
 }
@@ -60,10 +52,13 @@ enum RestActivity {
 /// The notification that says rest is over, for when the phone is in a pocket.
 enum RestAlarm {
     static let identifier = "rest-over"
+    /// While the watch records the session it taps the wrist itself, so the phone stays quiet.
+    @MainActor static var isWatchAlerting = false
 
     static func schedule(_ state: RestActivityAttributes.ContentState) async {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        guard await !isWatchAlerting else { return }
         let remaining = state.timer.remaining()
         guard remaining >= 1 else { return }
         let content = UNMutableNotificationContent()

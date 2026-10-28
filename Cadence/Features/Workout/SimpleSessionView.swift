@@ -214,9 +214,12 @@ struct SimpleSessionView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 Chip(symbol: "clock", text: "\(Int(session.plannedMinutes)) min planned")
-                Chip(symbol: "flame", text: "RPE \(Int((session.status == .completed ? session.rpe ?? rpe : rpe).rounded()))")
+                Chip(symbol: "gauge.with.dots.needle.50percent", text: "RPE \(Int((session.status == .completed ? session.rpe ?? rpe : rpe).rounded()))")
                 if session.modality == .running {
                     Chip(symbol: "point.topleft.down.to.point.bottomright.curvepath", text: String(format: "%.1f km", session.distanceKm ?? distance))
+                }
+                if session.status == .completed, let energy = session.activeKilocalories {
+                    Chip(symbol: "flame", text: Format.kcal(energy))
                 }
                 if session.status == .planned {
                     ChangeSessionMenu(session: session)

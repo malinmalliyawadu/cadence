@@ -7,7 +7,7 @@ import TrainingEngine
 /// Reads runs, yoga and strength workouts from Apple Health and completes Cadence sessions
 /// from them, and saves finished strength sessions back as workouts with the effort rated when
 /// they finished. Duration and distance come from the workout; effort comes from the Workout
-/// Effort Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart rate gives each run's average and the
+/// Effort Score the athlete rates in Fitness (1 to 10), falling back to the estimated score. Heart rate gives each workout's average and the
 /// max and resting figures that set the run zones; HRV, resting heart rate and sleep give the day's recovery.
 @MainActor
 @Observable
@@ -21,6 +21,9 @@ final class HealthKitService {
         let effort: Double?
         let effortIsEstimated: Bool
         let averageHeartRate: Double?
+        let activeKilocalories: Double?
+        /// The Cadence session the workout belongs to: set on workouts Cadence saved and on those its watch app recorded.
+        let externalID: UUID?
         /// Saved by Cadence from a finished strength session rather than recorded by a watch.
         let isOwn: Bool
 
@@ -49,7 +52,7 @@ final class HealthKitService {
     private let beatsPerMinute = HKUnit.count().unitDivided(by: .minute())
 
     private var readTypes: Set<HKObjectType> {
-        [workoutType, effortType, estimatedEffortType, distanceType, bodyMassType, heartRateType, restingHeartRateType, hrvType, sleepType, HKCharacteristicType(.dateOfBirth)]
+        [workoutType, effortType, estimatedEffortType, distanceType, activeEnergyType, bodyMassType, heartRateType, restingHeartRateType, hrvType, sleepType, HKCharacteristicType(.dateOfBirth)]
     }
 
     private var shareTypes: Set<HKSampleType> { [workoutType, activeEnergyType, effortType] }
@@ -100,7 +103,13 @@ final class HealthKitService {
             let distance = workout.statistics(for: distanceType)?.sumQuantity()?.doubleValue(for: .meterUnit(with: .kilo))
             let (effort, estimated) = try await effortScore(for: workout)
             let heartRate = workout.statistics(for: heartRateType)?.averageQuantity()?.doubleValue(for: beatsPerMinute)
-            results.append(Workout(id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance, effort: effort, effortIsEstimated: estimated, averageHeartRate: heartRate, isOwn: isOwn(workout)))
+            let energy = workout.statistics(for: activeEnergyType)?.sumQuantity()?.doubleValue(for: .kilocalorie())
+            let external = (workout.metadata?[HKMetadataKeyExternalUUID] as? String).flatMap(UUID.init(uuidString:))
+            results.append(Workout(
+                id: workout.uuid, modality: modality, start: workout.startDate, end: workout.endDate, distanceKm: distance,
+                effort: effort, effortIsEstimated: estimated, averageHeartRate: heartRate, activeKilocalories: energy,
+                externalID: external, isOwn: isOwn(workout)
+            ))
         }
         return results
     }
@@ -180,7 +189,8 @@ final class HealthKitService {
     /// workout with an estimate of the active energy and the effort rated on finishing, so it
     /// shows in Fitness and counts toward the Move ring. A watch recording of the same day's
     /// lifting is linked instead and takes the rating, and finishing a reopened session replaces
-    /// what Cadence saved the first time.
+    /// what Cadence saved the first time. A session Cadence's watch app recorded live waits for
+    /// the watch to save its workout, and falls back to the estimate if it does not arrive.
     func record(_ session: TrainingSession, in context: ModelContext, coordinator: PlanCoordinator) async {
         guard isEnabled, session.modality == .strength, session.status == .completed,
               store.authorizationStatus(for: workoutType) == .sharingAuthorized else { return }
@@ -195,10 +205,18 @@ final class HealthKitService {
                 }
             }
             // The watch recorded this session already, or ended its workout before it was finished here.
-            let recorded = try await workouts(since: calendar.startOfDay(for: session.date)).filter {
-                $0.modality == .strength && !$0.isOwn && calendar.isDate($0.start, inSameDayAs: session.date)
+            func watchWorkouts() async throws -> [Workout] {
+                try await workouts(since: calendar.startOfDay(for: session.date)).filter {
+                    $0.modality == .strength && !$0.isOwn && calendar.isDate($0.start, inSameDayAs: session.date)
+                }
             }
-            let watch = recorded.first { $0.id.uuidString == session.healthWorkoutID } ?? recorded.first { workout in
+            var recorded = try await watchWorkouts()
+            if session.recordedLive, !recorded.contains(where: { $0.externalID == session.id }), await arrival(ofWorkoutFor: session.id) {
+                recorded = try await watchWorkouts()
+            }
+            let watch = recorded.first { $0.externalID == session.id }
+                ?? recorded.first { $0.id.uuidString == session.healthWorkoutID }
+                ?? recorded.first { workout in
                 let id = workout.id.uuidString
                 return ((try? context.fetchCount(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.healthWorkoutID == id }))) ?? 0) == 0
             }
@@ -244,6 +262,32 @@ final class HealthKitService {
             try await rate(saved, as: session.rpe)
         } catch {
             lastMessage = "Could not save the session to Apple Health: \(error.localizedDescription)"
+        }
+    }
+
+    /// Waits for the workout Cadence's watch app saves for a session to reach this phone's Health
+    /// store, which can take a little while after the watch ends it. True if it arrived.
+    private func arrival(ofWorkoutFor sessionID: UUID, within seconds: Double = 90) async -> Bool {
+        let stamped = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: [sessionID.uuidString])
+        let descriptor = HKAnchoredObjectQueryDescriptor(predicates: [.workout(stamped)], anchor: nil)
+        let source = HKSource.default().bundleIdentifier
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask { [store] in
+                do {
+                    for try await update in descriptor.results(for: store)
+                    where update.addedSamples.contains(where: { $0.sourceRevision.source.bundleIdentifier != source }) {
+                        return true
+                    }
+                } catch {}
+                return false
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(seconds))
+                return false
+            }
+            let arrived = await group.next() ?? false
+            group.cancelAll()
+            return arrived
         }
     }
 
@@ -313,7 +357,7 @@ final class HealthKitService {
     /// - a completed session on that day without Health data (an import, a manual log) is enriched,
     /// - otherwise a new completed session is created.
     /// Workouts Cadence saved itself are skipped. A watch recording of a session Cadence already
-    /// saved replaces Cadence's copy, so the session is not in Health twice.
+    /// saved replaces Cadence's copy, so the session is not in Health twice, and takes its rating.
     @discardableResult
     func sync(days: Int = 90, in context: ModelContext, coordinator: PlanCoordinator) async -> SyncSummary {
         guard state == .ready || (isEnabled && state == .notRequested) else { return SyncSummary() }
@@ -351,14 +395,17 @@ final class HealthKitService {
             let recordedIDs = Set(recorded.map(\.id.uuidString))
             let sessions = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.date >= since }))) ?? []
             var replaced: [String] = []
+            var rated: [(workoutID: String, effort: Double?)] = []
             for workout in recorded {
                 let id = workout.id.uuidString
                 if let existing = sessions.first(where: { $0.healthWorkoutID == id }) {
                     if apply(workout, to: existing) { summary.updated += 1 }
                     continue
                 }
-                // Free to match: no workout yet, or only one Cadence saved, or one since deleted from Health.
-                let sameDay = sessions.filter {
+                // Cadence's watch app stamps the session it recorded. Otherwise free to match: no workout
+                // yet, or only one Cadence saved, or one since deleted from Health.
+                let stamped = workout.externalID.flatMap { external in sessions.first { $0.id == external } }
+                let sameDay = stamped.map { [$0] } ?? sessions.filter {
                     $0.modality == workout.modality && calendar.isDate($0.date, inSameDayAs: workout.start)
                         && !($0.healthWorkoutID.map(recordedIDs.contains) ?? false) && $0.status != .skipped
                 }
@@ -378,6 +425,8 @@ final class HealthKitService {
                 } else if let done = sameDay.first(where: { $0.status == .completed }) {
                     link(done)
                     if apply(workout, to: done) { summary.updated += 1 }
+                    // A lift logged here was rated when it finished; the watch's copy takes that rating. Imports stay out of Health.
+                    if done.modality == .strength, done.loggedSetCount > 0, done.importKey == nil { rated.append((id, done.rpe)) }
                 } else {
                     let minutes = workout.minutes.rounded()
                     let session = TrainingSession(date: workout.start, modality: workout.modality, plannedMinutes: minutes, weekStart: coordinator.weekStart(containing: workout.start))
@@ -397,6 +446,11 @@ final class HealthKitService {
             for id in replaced {
                 if let workout = try await storedWorkout(id: id), isOwn(workout) { try await delete(workout) }
             }
+            for (id, effort) in rated {
+                guard let workout = try await storedWorkout(id: id) else { continue }
+                try await deleteOwnEffort(on: workout)
+                try await rate(workout, as: effort)
+            }
             lastSync = .now
             lastMessage = summary.message
         } catch {
@@ -405,7 +459,7 @@ final class HealthKitService {
         return summary
     }
 
-    /// Copies duration, distance and effort onto a session. Returns true if anything changed.
+    /// Copies duration, distance, effort, heart rate and energy onto a session. Returns true if anything changed.
     @discardableResult
     private func apply(_ workout: Workout, to session: TrainingSession) -> Bool {
         var changed = false
@@ -419,6 +473,7 @@ final class HealthKitService {
         let effortApplies = !(session.modality == .strength && session.loggedSetCount > 0)
         if let effort = workout.effort, effortApplies, session.rpe != effort { session.rpe = effort; changed = true }
         if let heartRate = workout.averageHeartRate, session.averageHeartRate != heartRate.rounded() { session.averageHeartRate = heartRate.rounded(); changed = true }
+        if let energy = workout.activeKilocalories, session.activeKilocalories != energy.rounded() { session.activeKilocalories = energy.rounded(); changed = true }
         return changed
     }
 }
