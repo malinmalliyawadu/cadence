@@ -261,7 +261,7 @@ private struct EmptyHistory: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 17)).foregroundStyle(Palette.inkSecondary)
+            .font(.cadence(size: 17)).foregroundStyle(Palette.inkSecondary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 40)
     }

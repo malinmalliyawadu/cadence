@@ -83,7 +83,7 @@ struct WeekView: View {
     private var emptyWeek: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(weekOffset == 0 ? "Nothing planned yet." : "Next week is planned on Monday, or now if you want a head start.")
-                .font(.system(size: 17)).foregroundStyle(Palette.inkSecondary)
+                .font(.cadence(size: 17)).foregroundStyle(Palette.inkSecondary)
             Button {
                 Task { await coordinator.planWeek(containing: weekStart, in: context) }
             } label: {
@@ -179,7 +179,7 @@ struct DayCard: View {
                         .foregroundStyle(Palette.ink)
                     if forecast.precipitationProbability >= 0.3 {
                         Text(Format.percent(forecast.precipitationProbability))
-                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .font(.cadence(size: 11, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Palette.sky)
                     }
                 }

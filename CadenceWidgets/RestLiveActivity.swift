@@ -115,7 +115,7 @@ private struct RestCountdown: View {
                     .foregroundStyle(Palette.accent)
             }
         }
-        .font(.system(size: size, weight: .semibold).monospacedDigit())
+        .font(.cadence(size: size, weight: .semibold).monospacedDigit())
         .multilineTextAlignment(size < 20 ? .trailing : .leading)
         .contentTransition(.numericText(countsDown: true))
     }
@@ -158,7 +158,7 @@ private struct RestButtons: View {
     private func label(_ text: String, symbol: String) -> some View {
         Label(text, systemImage: symbol)
             .labelStyle(.titleAndIcon)
-            .font(.system(size: 15, weight: .medium))
+            .font(.cadence(size: 15, weight: .medium))
             .foregroundStyle(Palette.ink)
             .frame(maxWidth: .infinity, minHeight: 38)
             .background(Palette.raised, in: .capsule)

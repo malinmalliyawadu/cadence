@@ -23,7 +23,7 @@ struct EmptyPlanView: View {
                 Text(sessions.isEmpty
                      ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve.\(health.isEnabled ? "" : " Connect Apple Health in settings so runs and classes log themselves.")"
                      : "Plan the week and the lifts pick up exactly where your last session left off.")
-                    .font(.system(size: 17))
+                    .font(.cadence(size: 17))
                     .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -44,10 +44,10 @@ struct EmptyPlanView: View {
                 .disabled(importing)
             }
             if let importMessage {
-                Text(importMessage).font(.footnote).foregroundStyle(Palette.inkSecondary)
+                Text(importMessage).font(.footnote2).foregroundStyle(Palette.inkSecondary)
             }
             if let note = coordinator.forecastError {
-                Label(note, systemImage: "cloud.slash").font(.footnote).foregroundStyle(Palette.inkTertiary)
+                Label(note, systemImage: "cloud.slash").font(.footnote2).foregroundStyle(Palette.inkTertiary)
             }
             Spacer().frame(height: 24)
         }

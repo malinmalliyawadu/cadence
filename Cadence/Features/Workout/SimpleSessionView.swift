@@ -113,12 +113,12 @@ struct SimpleSessionView: View {
                         .background(Color.white.opacity(0.1), in: .circle)
                         .padding(.bottom, 6)
                     Text("\(Int(shown))")
-                        .font(.system(size: 64, weight: .bold).monospacedDigit())
+                        .font(.cadence(size: 64, weight: .bold).monospacedDigit())
                         .tracking(-1.5)
                         .foregroundStyle(Palette.ink)
                         .contentTransition(.numericText())
                     Text("Minutes")
-                        .font(.system(size: 20, weight: .regular))
+                        .font(.cadence(size: 20, weight: .regular))
                         .foregroundStyle(Palette.inkSecondary)
                 }
             }
@@ -199,7 +199,7 @@ struct SimpleSessionView: View {
 
     private func paceLine(_ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(text).font(.system(size: 40, weight: .bold).monospacedDigit()).tracking(-0.8).foregroundStyle(Palette.ink)
+            Text(text).font(.cadence(size: 40, weight: .bold).monospacedDigit()).tracking(-0.8).foregroundStyle(Palette.ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text("/km").font(.title2).foregroundStyle(Palette.inkSecondary)
         }

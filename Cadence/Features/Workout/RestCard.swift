@@ -21,7 +21,7 @@ struct RestCard: View {
                             .font(.label)
                             .foregroundStyle(isOver ? Palette.accent : Palette.inkSecondary)
                         Text(isOver ? "+\(Format.countdown(timer.overtime(at: context.date)))" : Format.countdown(timer.remaining(at: context.date)))
-                            .font(.system(size: 34, weight: .semibold).monospacedDigit())
+                            .font(.cadence(size: 34, weight: .semibold).monospacedDigit())
                             .foregroundStyle(isOver ? Palette.ink : Palette.accent)
                             .contentTransition(.numericText(countsDown: !isOver))
                     }

@@ -103,7 +103,7 @@ struct ExerciseDetailView: View {
             Text(Format.monthDay.string(from: point.date)).font(.label).foregroundStyle(Palette.inkSecondary)
                 .frame(width: 52, alignment: .leading)
             Text(sets.map { "\(Format.kg($0.weightKg))×\($0.reps)" }.joined(separator: "  "))
-                .font(.system(size: 15, weight: .medium).monospacedDigit())
+                .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
@@ -252,13 +252,13 @@ private struct ExerciseTrendCard: View {
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .frame(height: 200)

@@ -123,7 +123,7 @@ struct HomeView: View {
         // Spaced as Week's date range sits under its title.
         VStack(alignment: .leading, spacing: 9) {
             Text(greeting)
-                .font(.largeTitle.bold())
+                .font(.cadence(size: 34, weight: .bold))
                 .foregroundStyle(Palette.ink)
                 .accessibilityAddTraits(.isHeader)
             dateLine
@@ -253,7 +253,9 @@ struct UpcomingRow: View {
             SessionTile(symbol: session.modality.symbolName, tint: session.modality.tint, size: 42)
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.title).font(.rowTitle).foregroundStyle(Palette.ink).lineLimit(1)
-                Text(detail).font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary).lineLimit(1)
+                // A run's pace range can take a second line; it never truncates.
+                Text(detail).font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Text(day)

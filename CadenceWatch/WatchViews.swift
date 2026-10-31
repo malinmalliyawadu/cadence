@@ -20,11 +20,11 @@ struct WatchRootView: View {
 
 /// The watch's type: words at medium weight, numbers semibold with monospaced digits so a ticking clock never jitters.
 private enum WatchType {
-    static let hero = Font.system(size: 40, weight: .semibold).monospacedDigit()
-    static let figure = Font.system(size: 18, weight: .semibold).monospacedDigit()
-    static let title = Font.system(size: 17, weight: .medium)
-    static let body = Font.system(size: 15, weight: .medium)
-    static let caption = Font.system(size: 13, weight: .medium)
+    static let hero = Font.cadence(size: 40, weight: .semibold).monospacedDigit()
+    static let figure = Font.cadence(size: 18, weight: .semibold).monospacedDigit()
+    static let title = Font.cadence(size: 17, weight: .medium)
+    static let body = Font.cadence(size: 15, weight: .medium)
+    static let caption = Font.cadence(size: 13, weight: .medium)
 }
 
 // MARK: Before and after
@@ -37,7 +37,7 @@ struct StartView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Strength").font(.system(size: 22, weight: .medium)).foregroundStyle(Palette.ink)
+                    Text("Strength").font(.cadence(size: 22, weight: .medium)).foregroundStyle(Palette.ink)
                     Text(workout.message ?? "Starts when you log your first set on your phone. Start here to count your warm-up.")
                         .font(WatchType.caption)
                         .foregroundStyle(Palette.inkSecondary)
@@ -194,7 +194,7 @@ struct SetBlock: View {
                     .minimumScaleFactor(0.8)
                 Text(set.setLabel).font(WatchType.caption).foregroundStyle(Palette.inkSecondary)
                 Text(set.target)
-                    .font(.system(size: 34, weight: .semibold).monospacedDigit())
+                    .font(.cadence(size: 34, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -258,7 +258,7 @@ struct RestBlock: View {
 struct PausedBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Paused").font(.system(size: 34, weight: .medium)).foregroundStyle(Palette.ink)
+            Text("Paused").font(.cadence(size: 34, weight: .medium)).foregroundStyle(Palette.ink)
             Text("Swipe right to resume").font(WatchType.caption).foregroundStyle(Palette.inkSecondary)
         }
     }

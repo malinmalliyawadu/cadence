@@ -55,6 +55,10 @@ and the weather, generates every strength session, and progresses load from reps
     "Rest over" alert stays quiet meanwhile), and tells it to save on Finish or discard on Skip. No watch, no change.
   - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
+  - `Design/Typography.swift` - Sora (`Resources/Fonts/Sora.ttf`, a variable font under the OFL, credited in Settings,
+    Credits), bundled in the app, the watch app and the widget extension and listed in each target's `UIAppFonts`.
+    Text takes `Font.cadence(size:weight:)` or a named style, never `Font.system`, which is kept for SF Symbols.
+    Navigation titles and tab labels are UIKit, so `CadenceApp` sets them through the appearance proxies.
   - `Design/Motion.swift` - the four springs everything moves with (press, settle, reveal, exit; critically damped,
     exits a third quicker), the reveal and rise transitions, and the zoom that opens a session out of the card or row tapped.
   - `Design/MovementArt.swift` - muscle map, movement photos and list thumbnails. The `Movement` and `BodyMap`
@@ -163,7 +167,7 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   The one primary button is glass tinted with the violet. Cards that open something stay flat cards.
   "Change" opens a sheet (`Features/Workout/ChangeSheets.swift`) rather than a menu: focus tiles, run types, and the
   week's other days as rows. Outlined chips for facts, a progress ring as the hero on run and yoga screens, hatched bars for
-  weekly load, the icon's mark (`OrbitMark`) on the empty week. Words at medium weight, numbers semibold monospaced.
+  weekly load, the icon's mark (`OrbitMark`) on the empty week. Sora throughout, words at medium weight, numbers semibold monospaced.
   Running and yoga use sky and orchid, either side of the violet, only where charts need to tell modalities apart.
   Weight and reps take keyboard entry as well as the steppers. Side margins are `Metrics.gutter` (16), in line with
   the large title. Chips wrap (`ChipFlow`); nothing on a page scrolls sideways. Motion only says where something came
