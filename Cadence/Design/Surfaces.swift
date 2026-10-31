@@ -109,7 +109,8 @@ struct InfoGlyph: View {
 }
 
 /// The glyph ahead of a card's title: no disc or outline, flush with the card's text, in a fixed
-/// slot so titles line up whichever glyph leads them.
+/// slot so titles line up whichever glyph leads them. The slot is as tall as a title row needs
+/// to be, so the card's content keeps its distance below the title.
 struct TitleIcon: View {
     let symbol: String
     var tint: Color = Palette.ink
@@ -118,7 +119,7 @@ struct TitleIcon: View {
         Image(systemName: symbol)
             .font(.system(size: 17, weight: .medium))
             .foregroundStyle(tint)
-            .frame(width: 24, height: 24, alignment: .leading)
+            .frame(width: 24, height: 34, alignment: .leading)
             .accessibilityHidden(true)
     }
 }

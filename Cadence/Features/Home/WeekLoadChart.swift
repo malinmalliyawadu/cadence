@@ -24,7 +24,8 @@ struct WeekLoadChart: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 18) {
+            // The top axis label rides above its grid line, so the plot sits a little further down.
+            VStack(alignment: .leading, spacing: 24) {
                 HStack(spacing: 10) {
                     TitleIcon(symbol: "flame")
                     Text("Load this week").font(.rowTitle).foregroundStyle(Palette.ink)

@@ -88,6 +88,8 @@ struct LoadMixCard: View {
                 Modality.yoga.displayName: Palette.orchid,
             ])
             .chartXAxis { dayAxis(window: window) }
+            // The bars run to the card's edge; room at the end keeps the last date whole.
+            .chartXScale(range: .plotDimension(endPadding: 36))
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
@@ -116,10 +118,9 @@ struct LoadMixCard: View {
     }
 }
 
-/// Date ticks every week, or every fortnight on the long window. Aligned, so the labels at either
-/// end stay inside the plot instead of clipping at the card's edge.
+/// Date ticks every week, or every fortnight on the long window, each label centred on its tick.
 private func dayAxis(window: Int) -> some AxisContent {
-    AxisMarks(preset: .aligned, values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
+    AxisMarks(values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)
         AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
     }
