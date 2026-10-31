@@ -42,12 +42,13 @@ struct StrengthSessionView: View {
                                         isExpanded: expanded == exercise.order,
                                         isEditable: session.status != .completed,
                                         focus: $focus,
-                                        onToggle: { toggle(exercise) },
+                                        onToggle: { toggle(exercise, in: proxy) },
                                         onLogged: {
                                             startRest(after: exercise)
                                             revealLogger(in: proxy)
                                         }
                                     )
+                                    .id(ExerciseCard.cardID(exercise.order))
                                 }
                             }
                         }
@@ -213,9 +214,13 @@ struct StrengthSessionView: View {
         return "\(effort) Next week's loads are already adjusted.\(session.healthWorkoutID != nil ? " In Apple Health." : "")"
     }
 
-    private func toggle(_ exercise: PlannedExercise) {
+    /// Opens a movement and brings its card to the top, so it reads from its photo down whatever
+    /// collapsed above it. Closing one leaves the page where it is.
+    private func toggle(_ exercise: PlannedExercise, in proxy: ScrollViewProxy) {
+        let opening = expanded != exercise.order
         withAnimation(Motion.reveal) {
-            expanded = expanded == exercise.order ? nil : exercise.order
+            expanded = opening ? exercise.order : nil
+            if opening { proxy.scrollTo(ExerciseCard.cardID(exercise.order), anchor: .top) }
         }
     }
 
@@ -522,6 +527,7 @@ struct ExerciseCard: View {
     }
 
     static func loggerID(_ order: Int) -> String { "logger-\(order)" }
+    static func cardID(_ order: Int) -> String { "movement-\(order)" }
 
     private func editor(for index: Int) -> some View {
         VStack(spacing: 12) {
