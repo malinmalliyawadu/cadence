@@ -222,7 +222,12 @@ final class PlannedExercise {
 
     /// What the engine needs to progress this movement next time.
     var historyEntry: ExerciseHistoryEntry? {
-        let performed = completedSets.filter { $0.reps > 0 }.map { PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir) }
+        // Each set is read once before sorting: across a long history, model reads are the cost.
+        let performed = sets
+            .map { (index: $0.index, isLogged: $0.completedAt != nil, set: PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir)) }
+            .filter { $0.isLogged && $0.set.reps > 0 }
+            .sorted { $0.index < $1.index }
+            .map(\.set)
         guard !performed.isEmpty, let date = session?.completedAt ?? session?.date else { return nil }
         return ExerciseHistoryEntry(exerciseID: exerciseID, date: date, targetReps: repRange, targetRIR: targetRIR, sets: performed)
     }

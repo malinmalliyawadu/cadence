@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  106 tests in under a second. Everything that decides what to train lives here, never in views.
+  115 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -18,6 +18,9 @@ and the weather, generates every strength session, and progresses load from reps
     dumbbell isolation or bodyweight). The real-export smoke test checks it agrees with what was actually warmed up for.
   - `Strength/RestTimer.swift` - rest between sets by role and rep range (the planner's session minutes use the same
     numbers), and the wall-clock countdown the app, the Live Activity and the notification all read.
+  - `Strength/ExerciseTrend.swift` - a movement over time: one point per session (e1RM with bodyweight for bodyweight
+    movements, top set, volume), bests, and a window's change and direction from a least-squares slope (half a percent
+    of the mean a week).
   - `Strength/SchemePresets.swift` - per-session scheme switches (Heavy, Strength, Hypertrophy, Volume, Pump) and the weight for a new rep range from the latest e1RM, deload kept.
   - `Load/TrainingLoad.swift` - session-RPE load, EWMA acute:chronic ratio, monotony, strain, readiness.
   - `Load/Recovery.swift` - today's recovery from HRV, resting heart rate and sleep against the athlete's own baselines.
@@ -26,6 +29,12 @@ and the weather, generates every strength session, and progresses load from reps
   - `Running/RunTargets.swift` - target pace from recent runs (Daniels VDOT, best run of eight weeks) and heart-rate zones (Karvonen when resting HR is known).
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
+  - `Features/History/` - the History tab: finished sessions by month (filter by modality, search by movement), and every
+    movement lifted with its estimated max and three-month change. A movement opens onto its trend (estimated max, heaviest
+    set or volume over a window, drag to read a session), its bests, next time's load and every session it was logged in,
+    under how it moves.
+    The maths is `Strength/ExerciseTrend.swift`; `MovementHistory` lines its points up with the sessions they came from,
+    and `HistoryReader` works it out on a background context, since reading every logged set on the main one stalls taps.
   - `Features/Home/ExplainerSheet.swift` - what tapping Training load, Recovery, Monotony or Strain on Home slides up:
     the number, a chart of the athlete's own data behind it, the sum with today's values, and what the planner does with it.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.

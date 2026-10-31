@@ -12,6 +12,28 @@ enum Format {
         kg.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(kg))" : String(format: "%.1f", kg)
     }
 
+    /// An estimate to the nearest half kilogram: "104.5" for an e1RM of 104.83.
+    static func estimate(_ kg: Double) -> String { self.kg((kg * 2).rounded() / 2) }
+
+    /// "85 kg × 6", or "Bodyweight × 10" with nothing added.
+    static func set(_ set: PerformedSet) -> String { "\(weight(set.weightKg)) × \(set.reps)" }
+
+    /// A trend metric's value: "104.5 kg", "85 kg", "2,400 kg".
+    static func value(_ value: Double, metric: TrendMetric) -> String {
+        switch metric {
+        case .oneRepMax: "\(estimate(value)) kg"
+        case .topSet: "\(kg(value)) kg"
+        case .volume: "\(Int(value.rounded()).formatted()) kg"
+        }
+    }
+
+    /// A change in a trend metric, signed: "+4.5 kg", "−2.5 kg", "0 kg".
+    static func change(_ change: Double, metric: TrendMetric) -> String {
+        let magnitude = value(abs(change), metric: metric)
+        if magnitude.hasPrefix("0 ") { return magnitude }
+        return (change > 0 ? "+" : "−") + magnitude
+    }
+
     static func minutes(_ minutes: Double) -> String {
         let m = Int(minutes.rounded())
         if m >= 60 { return m % 60 == 0 ? "\(m / 60) h" : "\(m / 60) h \(m % 60) min" }
@@ -84,6 +106,12 @@ enum Format {
     static let dayNumber: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "d"
+        return f
+    }()
+
+    static let monthYear: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "LLLL yyyy"
         return f
     }()
 

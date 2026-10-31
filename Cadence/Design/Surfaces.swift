@@ -216,7 +216,7 @@ struct MenuChip<Value: Hashable>: View {
 }
 
 /// A segmented control on glass: one glass track, with the violet sliding to the segment picked.
-/// The Library's halves, reps in reserve, a session's half.
+/// History's pages, reps in reserve, a session's half.
 struct ChipPicker<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
