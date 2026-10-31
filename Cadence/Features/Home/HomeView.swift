@@ -59,8 +59,11 @@ struct HomeView: View {
                     }
                 }
             }
+            // The greeting is part of the page and scrolls away with it; the bar keeps only its
+            // buttons, so nothing takes its place as an inline title.
             .navigationTitle(greeting)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(removing: .title)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
@@ -115,8 +118,20 @@ struct HomeView: View {
 
     // MARK: Header and hero
 
-    /// Under the greeting, as the date range sits under Week's title.
+    /// The greeting, set as the other tabs' large titles are, with the date and weather under it.
     private var header: some View {
+        // Spaced as Week's date range sits under its title.
+        VStack(alignment: .leading, spacing: 9) {
+            Text(greeting)
+                .font(.largeTitle.bold())
+                .foregroundStyle(Palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            dateLine
+        }
+    }
+
+    /// Under the greeting, as the date range sits under Week's title.
+    private var dateLine: some View {
         HStack(spacing: 8) {
             Text(Format.dayMonth.string(from: now))
             if let forecast = forecast(on: now) {
