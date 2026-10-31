@@ -212,7 +212,8 @@ private struct ChangeSection<Content: View>: View {
     }
 }
 
-/// A half's focus areas as large glass tiles, two to a row. The session's current focus is lit.
+/// A half's focus areas as large glass tiles, two to a row, each with the figure showing the
+/// muscles it builds. The session's current focus is lit.
 private struct FocusGrid: View {
     let half: BodyHalf
     let current: FocusArea?
@@ -222,19 +223,24 @@ private struct FocusGrid: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             ForEach(FocusArea.areas(for: half)) { focus in
                 Button { onPick(focus) } label: {
-                    HStack(spacing: 8) {
+                    // The name sits centred under the figure; the current focus's check takes the corner.
+                    VStack(spacing: 10) {
+                        FocusFigure(focus: focus)
+                            .frame(height: 88)
                         Text(focus.displayName)
                             .font(.rowTitle)
                             .foregroundStyle(Palette.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-                        Spacer(minLength: 0)
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity)
+                    .overlay(alignment: .topTrailing) {
                         if focus == current {
                             Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.accent)
+                                .padding(14)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                 }
                 .buttonStyle(.option(isCurrent: focus == current))
                 .disabled(focus == current)
@@ -245,6 +251,24 @@ private struct FocusGrid: View {
         // Switching halves swaps the tiles in place.
         .id(half)
         .transition(.opacity.animation(Motion.settle))
+    }
+}
+
+/// The figure for a focus, cropped to the half of the body it trains (head to hips, or hips to
+/// feet) so the muscles read at tile size. Arms show both sides, for biceps and triceps.
+private struct FocusFigure: View {
+    let focus: FocusArea
+
+    var body: some View {
+        let showsLegs = focus.half == .lower
+        GeometryReader { proxy in
+            MuscleMap(primaries: focus.muscles, sides: MuscleMap.sides(showing: focus.muscles))
+                // 1.9 times the frame shows head to hips; legs take 1.65, from the waist, so the glutes are whole.
+                .frame(height: proxy.size.height * (showsLegs ? 1.65 : 1.9))
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: showsLegs ? .bottom : .top)
+        }
+        .clipped()
+        .accessibilityHidden(true)
     }
 }
 
