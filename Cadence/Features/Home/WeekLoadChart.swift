@@ -49,7 +49,7 @@ struct WeekLoadChart: View {
                     let value = scaleMax * Double(step) / 4
                     HStack(spacing: 8) {
                         Text(Format.load(value))
-                            .font(.system(size: 11, weight: .medium).monospacedDigit())
+                            .font(.cadence(size: 11, weight: .medium).monospacedDigit())
                             .foregroundStyle(Palette.inkTertiary)
                             .frame(width: axisWidth, alignment: .trailing)
                         Rectangle().fill(Palette.hairline).frame(height: 1)
@@ -69,7 +69,7 @@ struct WeekLoadChart: View {
             HStack(spacing: 10) {
                 ForEach(days) { day in
                     Text(Format.shortWeekday.string(from: day.date))
-                        .font(.system(size: 12, weight: calendar.isDate(day.date, inSameDayAs: today) ? .semibold : .medium))
+                        .font(.cadence(size: 12, weight: calendar.isDate(day.date, inSameDayAs: today) ? .semibold : .medium))
                         .foregroundStyle(calendar.isDate(day.date, inSameDayAs: today) ? Palette.today : Palette.inkTertiary)
                         .frame(maxWidth: .infinity)
                 }

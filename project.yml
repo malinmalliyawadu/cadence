@@ -27,6 +27,7 @@ targets:
       - path: Cadence
         excludes:
           - "Cadence.entitlements"
+          - "Info.plist"
       - path: Shared
     dependencies:
       - package: TrainingEngine
@@ -38,6 +39,7 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Cadence/Info.plist
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
@@ -60,6 +62,7 @@ targets:
       - path: Shared
       - path: Cadence/Design/Palette.swift
       - path: Cadence/Design/Typography.swift
+      - path: Cadence/Resources/Fonts/Sora.ttf
     dependencies:
       - package: TrainingEngine
       - sdk: WidgetKit.framework
@@ -86,6 +89,7 @@ targets:
       - path: Cadence/Design/Formatters.swift
       - path: Cadence/Design/Palette.swift
       - path: Cadence/Design/Typography.swift
+      - path: Cadence/Resources/Fonts/Sora.ttf
     dependencies:
       - package: TrainingEngine
     settings:

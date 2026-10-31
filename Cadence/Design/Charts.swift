@@ -122,7 +122,7 @@ struct ValueCallout: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 13, weight: .semibold).monospacedDigit())
+            .font(.cadence(size: 13, weight: .semibold).monospacedDigit())
             .foregroundStyle(Palette.onAccent)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)

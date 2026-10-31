@@ -136,7 +136,7 @@ struct ExerciseDetailView: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     Text(Format.monthDay.string(from: entry.date)).font(.label).foregroundStyle(Palette.inkSecondary).frame(width: 52, alignment: .leading)
                                     Text(entry.workingSets.map { "\(Format.kg($0.weightKg))×\($0.reps)" }.joined(separator: "  "))
-                                        .font(.system(size: 15, weight: .medium).monospacedDigit())
+                                        .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                                         .foregroundStyle(Palette.ink)
                                     Spacer(minLength: 8)
                                     Text("e1RM \(Format.kg(entry.sessionOneRepMax ?? 0))").font(.label.monospacedDigit()).foregroundStyle(Palette.inkTertiary)
@@ -170,8 +170,8 @@ struct ExerciseDetailView: View {
                     .foregroundStyle(Palette.accent).symbolSize(40)
             }
             .chartYScale(domain: .automatic(includesZero: false))
-            .chartXAxis { AxisMarks { _ in AxisGridLine().foregroundStyle(Palette.hairline); AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary) } }
-            .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine().foregroundStyle(Palette.hairline); AxisValueLabel().foregroundStyle(Palette.inkTertiary) } }
+            .chartXAxis { AxisMarks { _ in AxisGridLine().foregroundStyle(Palette.hairline); AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.axis).foregroundStyle(Palette.inkTertiary) } }
+            .chartYAxis { AxisMarks(position: .leading) { _ in AxisGridLine().foregroundStyle(Palette.hairline); AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary) } }
             .frame(height: 160)
         }
         .padding(16)

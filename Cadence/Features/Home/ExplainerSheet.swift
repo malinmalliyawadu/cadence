@@ -141,7 +141,7 @@ private struct TrainingLoadExplainer: View {
         .chartYAxis {
             AxisMarks(position: .leading, values: [0.8, 1.3, 1.5]) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .chartXAxis { weekAxis }
@@ -248,12 +248,12 @@ private struct MonotonyExplainer: View {
         }
         .chartYScale(domain: 0...max(top, 1))
         .chartXAxis {
-            AxisMarks { _ in AxisValueLabel().foregroundStyle(Palette.inkTertiary) }
+            AxisMarks { _ in AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary) }
         }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .frame(height: 170)
@@ -290,7 +290,7 @@ private struct MonotonyExplainer: View {
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .frame(height: 150)
@@ -384,13 +384,13 @@ private struct StrainExplainer: View {
         .chartXAxis {
             // Every other week, counting back from this one, so the dates have room.
             AxisMarks(values: weeks.reversed().enumerated().filter { $0.offset.isMultiple(of: 2) }.map { Format.monthDay.string(from: $0.element.date) }) { _ in
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
         .frame(height: 170)
@@ -573,7 +573,7 @@ private struct ExplainerHeader: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 Text(value)
-                    .font(isWord ? .system(size: 44, weight: .medium) : .numeralLarge)
+                    .font(isWord ? .cadence(size: 44, weight: .medium) : .numeralLarge)
                     .tracking(isWord ? -0.6 : 0)
                     .foregroundStyle(Palette.ink)
                 StatusChip(text: verdict, tint: tint)
@@ -651,7 +651,7 @@ private struct Equation: View {
 
     private func operation(_ symbol: String) -> some View {
         Text(symbol)
-            .font(.system(size: 18, weight: .medium))
+            .font(.cadence(size: 18, weight: .medium))
             .foregroundStyle(Palette.inkTertiary)
             .frame(maxWidth: .infinity)
             .padding(.bottom, 1)
@@ -727,6 +727,6 @@ private struct BandKey: View {
 private var weekAxis: some AxisContent {
     AxisMarks(values: .stride(by: .day, count: 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)
-        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
+        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.axis).foregroundStyle(Palette.inkTertiary)
     }
 }

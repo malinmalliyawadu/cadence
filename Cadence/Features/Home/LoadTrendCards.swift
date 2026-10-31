@@ -47,7 +47,7 @@ struct LoadTrendCard: View {
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
-                    AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                    AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
                 }
             }
             .chartLegend(.hidden)
@@ -93,7 +93,7 @@ struct LoadMixCard: View {
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
-                    AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                    AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
                 }
             }
             .chartLegend(.hidden)
@@ -122,7 +122,7 @@ struct LoadMixCard: View {
 private func dayAxis(window: Int) -> some AxisContent {
     AxisMarks(values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)
-        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
+        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.axis).foregroundStyle(Palette.inkTertiary)
     }
 }
 
@@ -161,7 +161,7 @@ struct StatTile: View {
             }
             Text(value).font(.numeral).foregroundStyle(Palette.ink).lineLimit(1).minimumScaleFactor(0.7)
                 .contentTransition(.numericText())
-            Text(unit).font(.system(size: 12, weight: .medium)).foregroundStyle(tint).lineLimit(1).frame(height: 14)
+            Text(unit).font(.cadence(size: 12, weight: .medium)).foregroundStyle(tint).lineLimit(1).frame(height: 14)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)

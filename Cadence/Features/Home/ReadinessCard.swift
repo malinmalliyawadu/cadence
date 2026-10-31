@@ -154,7 +154,7 @@ struct ZoneGauge: View {
                 }
                 ForEach(Self.ticks, id: \.self) { tick in
                     Text(String(format: "%.1f", tick))
-                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .font(.cadence(size: 11, weight: .medium).monospacedDigit())
                         .foregroundStyle(Palette.inkTertiary)
                         .fixedSize()
                         .frame(width: 30)

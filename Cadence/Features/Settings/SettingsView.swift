@@ -40,7 +40,7 @@ struct SettingsView: View {
         @Bindable var profile = profile
         Form {
             Group {
-                Section("Week") {
+                Section {
                     Stepper("Strength sessions: \(profile.strengthSessionsPerWeek)", value: $profile.strengthSessionsPerWeek, in: 0...6)
                     Toggle("Long run", isOn: $profile.includeLongRun)
                     Toggle("Quality run (tempo or intervals)", isOn: $profile.includeQualityRun)
@@ -51,6 +51,8 @@ struct SettingsView: View {
                         Text("No preference").tag(-1)
                         ForEach(0..<7, id: \.self) { Text(dayNames[$0]).tag($0) }
                     }
+                } header: {
+                    Text("Week").formHeader()
                 }
 
                 Section {
@@ -60,7 +62,7 @@ struct SettingsView: View {
                             Button(dayNames[index]) {
                                 if off { profile.unavailableDays.removeAll { $0 == index } } else { profile.unavailableDays.append(index) }
                             }
-                            .font(.caption.weight(.semibold))
+                            .font(.cadence(size: 12, weight: .semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
                             .foregroundStyle(off ? Palette.inkTertiary : Palette.onAccent)
                             .contentShape(.capsule)
@@ -70,18 +72,20 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Days you can train")
+                    Text("Days you can train").formHeader()
                 } footer: {
-                    Text("Tap a day to mark it off. The planner never schedules on grey days.")
+                    Text("Tap a day to mark it off. The planner never schedules on grey days.").formFooter()
                 }
 
-                Section("Next focus") {
+                Section {
                     Picker("Upper", selection: $profile.nextUpperFocus) {
                         ForEach(FocusArea.areas(for: .upper)) { Text($0.displayName).tag($0) }
                     }
                     Picker("Lower", selection: $profile.nextLowerFocus) {
                         ForEach(FocusArea.areas(for: .lower)) { Text($0.displayName).tag($0) }
                     }
+                } header: {
+                    Text("Next focus").formHeader()
                 }
 
                 Section {
@@ -91,18 +95,20 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("In every session")
+                    Text("In every session").formHeader()
                 } footer: {
-                    Text("Added on top of the six movements the planner picks. Upcoming sessions with nothing logged change too.")
+                    Text("Added on top of the six movements the planner picks. Upcoming sessions with nothing logged change too.").formFooter()
                 }
 
-                Section("Equipment") {
+                Section {
                     ForEach(Equipment.allCases, id: \.self) { item in
                         Toggle(item.rawValue.capitalized, isOn: Binding(
                             get: { profile.equipment.contains(item) },
                             set: { on in var set = profile.equipment; if on { set.insert(item) } else { set.remove(item) }; profile.equipment = set }
                         ))
                     }
+                } header: {
+                    Text("Equipment").formHeader()
                 }
 
                 Section {
@@ -117,15 +123,15 @@ struct SettingsView: View {
                         }
                     }
                     if case .denied = location.state {
-                        Text("Location is off for Cadence. Turn it on in Settings, or keep the default.").font(.footnote).foregroundStyle(.secondary)
+                        Text("Location is off for Cadence. Turn it on in Settings, or keep the default.").font(.footnote2).foregroundStyle(.secondary)
                     }
                     if case .failed(let message) = location.state {
-                        Text(message).font(.footnote).foregroundStyle(.secondary)
+                        Text(message).font(.footnote2).foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Forecast")
+                    Text("Forecast").formHeader()
                 } footer: {
-                    Text("Forecasts come from Open-Meteo for the ten days ahead. Runs chase mild, dry, still days.")
+                    Text("Forecasts come from Open-Meteo for the ten days ahead. Runs chase mild, dry, still days.").formFooter()
                 }
 
                 Section {
@@ -136,15 +142,18 @@ struct SettingsView: View {
                         profile.bodyweightEnteredAt = .now
                     }), in: 40...200, step: 0.5)
                 } header: {
-                    Text("Body")
+                    Text("Body").formHeader()
                 } footer: {
-                    if let date = profile.bodyweightFromHealthAt {
-                        Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
-                    } else {
-                        Text(health.isEnabled
-                             ? "Used to progress dips, pull-ups and chin-ups."
-                             : "Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
+                    Group {
+                        if let date = profile.bodyweightFromHealthAt {
+                            Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Used to progress dips, pull-ups and chin-ups.")
+                        } else {
+                            Text(health.isEnabled
+                                 ? "Used to progress dips, pull-ups and chin-ups."
+                                 : "Used to progress dips, pull-ups and chin-ups. Connect Apple Health to keep it current.")
+                        }
                     }
+                    .formFooter()
                 }
 
                 Section {
@@ -167,17 +176,20 @@ struct SettingsView: View {
                         .disabled(syncing)
                     }
                 } header: {
-                    Text("Heart rate")
+                    Text("Heart rate").formHeader()
                 } footer: {
-                    if profile.maxHeartRateSetByHand || profile.restingHeartRateSetByHand {
-                        Text(heartRateByHandNote(max: profile.maxHeartRateSetByHand, resting: profile.restingHeartRateSetByHand, healthEnabled: health.isEnabled))
-                    } else if let date = profile.heartRateFromHealthAt {
-                        Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
-                    } else {
-                        Text(health.isEnabled
-                             ? "Sets the heart-rate zones for runs. These fill in from your watch once Apple Health has heart-rate readings."
-                             : "Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
+                    Group {
+                        if profile.maxHeartRateSetByHand || profile.restingHeartRateSetByHand {
+                            Text(heartRateByHandNote(max: profile.maxHeartRateSetByHand, resting: profile.restingHeartRateSetByHand, healthEnabled: health.isEnabled))
+                        } else if let date = profile.heartRateFromHealthAt {
+                            Text("From Apple Health, \(date.formatted(date: .abbreviated, time: .omitted)). Sets the heart-rate zones for runs; resting rate makes them fit you more closely.")
+                        } else {
+                            Text(health.isEnabled
+                                 ? "Sets the heart-rate zones for runs. These fill in from your watch once Apple Health has heart-rate readings."
+                                 : "Sets the heart-rate zones for runs. Connect Apple Health and these fill in from your watch.")
+                        }
                     }
+                    .formFooter()
                 }
 
                 Section {
@@ -213,12 +225,12 @@ struct SettingsView: View {
                         }
                     }
                     if let message = health.lastMessage {
-                        Text(message).font(.footnote).foregroundStyle(.secondary)
+                        Text(message).font(.footnote2).foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Apple Health")
+                    Text("Apple Health").formHeader()
                 } footer: {
-                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. With Cadence on your Apple Watch, logging your first set starts a workout there, so heart rate and calories are measured as you lift. HRV, resting heart rate and sleep set the day's recovery. Syncs whenever Cadence opens.")
+                    Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. With Cadence on your Apple Watch, logging your first set starts a workout there, so heart rate and calories are measured as you lift. HRV, resting heart rate and sleep set the day's recovery. Syncs whenever Cadence opens.").formFooter()
                 }
 
                 Section {
@@ -234,7 +246,7 @@ struct SettingsView: View {
                     }
                     .disabled(importing)
                 } header: {
-                    Text("Import")
+                    Text("Import").formHeader()
                 } footer: {
                     // The result sits in the footer: inserting a row under the button leaves a seam.
                     VStack(alignment: .leading, spacing: 8) {
@@ -245,6 +257,7 @@ struct SettingsView: View {
                              ? "Deletes every session, logged and planned, then imports the file. Reps in reserve are assumed to be 2 for imported sets."
                              : "Adds lifts and runs from a CSV with Date, Exercise, Reps, Weight(kg), Duration(s), Distance(m) and isWarmup columns. Days already in Cadence are left alone, so importing again only adds what is new. Reps in reserve are assumed to be 2 for imported sets.")
                     }
+                    .formFooter()
                 }
 
                 Section {
@@ -260,11 +273,13 @@ struct SettingsView: View {
                             Text("This removes all history and plans. Settings stay.")
                         }
                 } footer: {
-                    Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                    Text("Cadence \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")").formFooter()
                 }
             }
             .listRowBackground(Palette.surface)
         }
+        // Sora runs wider than SF, so rows sit a point under the system's 17 to leave their controls room.
+        .font(.cadence(size: 16))
         .scrollContentBackground(.hidden)
         .background(Palette.canvas)
         .onChange(of: location.state) { _, state in
@@ -299,4 +314,11 @@ struct SettingsView: View {
         default: return "\(names.count) movements"
         }
     }
+}
+
+/// A form's section headers and footers as the system draws them, in Sora: an explicit font
+/// replaces the system's header and footer styles, so each one names its own.
+private extension View {
+    func formHeader() -> some View { font(.cadence(size: 16, weight: .semibold)) }
+    func formFooter() -> some View { font(.footnote2) }
 }

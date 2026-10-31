@@ -51,7 +51,7 @@ struct Chip: View {
                     .foregroundStyle(tint)
             }
             Text(text)
-                .font(.system(size: 15, weight: .medium).monospacedDigit())
+                .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
         }
@@ -181,7 +181,7 @@ struct MenuChipLabel: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(text)
-                .font(.system(size: 14, weight: .medium))
+                .font(.cadence(size: 14, weight: .medium))
                 .contentTransition(.interpolate)
             Image(systemName: "chevron.down")
                 .font(.system(size: 11, weight: .semibold))
@@ -231,7 +231,7 @@ struct ChipPicker<Value: Hashable>: View {
                     withAnimation(Motion.settle) { selection = value }
                 } label: {
                     Text(label)
-                        .font(.system(size: 15, weight: .medium).monospacedDigit())
+                        .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                         .foregroundStyle(isSelected ? Palette.onAccent : Palette.inkSecondary)
                         .frame(maxWidth: .infinity, minHeight: 40)
                         .background {
@@ -260,7 +260,7 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 17, weight: .semibold))
+            .font(.cadence(size: 17, weight: .semibold))
             .foregroundStyle(isEnabled ? Palette.onAccent : Palette.inkTertiary)
             .frame(maxWidth: .infinity, minHeight: 54)
             .contentShape(.capsule)
@@ -275,7 +275,7 @@ struct SecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .medium))
+            .font(.cadence(size: 16, weight: .medium))
             .foregroundStyle(Palette.ink.opacity(isEnabled ? 1 : 0.4))
             .frame(maxWidth: .infinity, minHeight: 50)
             .contentShape(.capsule)
