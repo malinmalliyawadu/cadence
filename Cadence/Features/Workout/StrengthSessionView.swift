@@ -187,7 +187,7 @@ struct StrengthSessionView: View {
         } else if session.status == .completed {
             Card {
                 HStack(spacing: 14) {
-                    IconDisc(symbol: "checkmark", tint: Palette.sage)
+                    TitleIcon(symbol: "checkmark", tint: Palette.sage)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Logged").font(.rowTitle).foregroundStyle(Palette.ink)
                         Text(loggedSummary)

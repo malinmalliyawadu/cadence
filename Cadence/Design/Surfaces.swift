@@ -108,18 +108,17 @@ struct InfoGlyph: View {
     }
 }
 
-/// A small outlined circle holding a glyph, used ahead of a stat's title.
-struct IconDisc: View {
+/// The glyph ahead of a card's title: no disc or outline, flush with the card's text, in a fixed
+/// slot so titles line up whichever glyph leads them.
+struct TitleIcon: View {
     let symbol: String
     var tint: Color = Palette.ink
-    var size: CGFloat = 34
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.42, weight: .medium))
+            .font(.system(size: 17, weight: .medium))
             .foregroundStyle(tint)
-            .frame(width: size, height: size)
-            .overlay { Circle().strokeBorder(Palette.stroke, lineWidth: 1) }
+            .frame(width: 24, height: 24, alignment: .leading)
             .accessibilityHidden(true)
     }
 }

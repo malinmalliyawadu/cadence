@@ -33,7 +33,7 @@ struct ReadinessCard: View {
         let zone = readiness.zone
         return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                IconDisc(symbol: zone.symbolName, tint: zone.tint)
+                TitleIcon(symbol: zone.symbolName, tint: zone.tint)
                 Text("Training load").font(.rowTitle).foregroundStyle(Palette.ink)
                 InfoGlyph()
                 Spacer(minLength: 8)
@@ -74,7 +74,7 @@ private struct RecoverySection: View {
         let tint = recovery.level.map(Palette.color(for:)) ?? Palette.rest
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                IconDisc(symbol: "waveform.path.ecg", tint: tint)
+                TitleIcon(symbol: "waveform.path.ecg", tint: tint)
                 Text("Recovery").font(.rowTitle).foregroundStyle(Palette.ink)
                 InfoGlyph()
                 Spacer(minLength: 8)

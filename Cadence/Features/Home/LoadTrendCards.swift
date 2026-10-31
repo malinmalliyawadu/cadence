@@ -13,7 +13,7 @@ struct LoadTrendCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Button(action: onExplain) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: "waveform.path.ecg")
+                    TitleIcon(symbol: "waveform.path.ecg")
                     Text("Acute against chronic").font(.rowTitle).foregroundStyle(Palette.ink)
                     InfoGlyph()
                     Spacer(minLength: 0)
@@ -74,7 +74,7 @@ struct LoadMixCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                IconDisc(symbol: "chart.bar")
+                TitleIcon(symbol: "chart.bar")
                 Text("Where the load comes from").font(.rowTitle).foregroundStyle(Palette.ink)
             }
             Chart(entries, id: \.date) { entry in

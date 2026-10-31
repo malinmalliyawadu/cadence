@@ -205,7 +205,7 @@ struct StatCard: View {
         Card(padding: 14) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: symbol, tint: tint)
+                    TitleIcon(symbol: symbol, tint: tint)
                     Text(title).font(.rowTitle).foregroundStyle(Palette.ink)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {

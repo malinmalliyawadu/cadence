@@ -178,7 +178,7 @@ struct SimpleSessionView: View {
                 }
                 Rectangle().fill(Palette.hairline).frame(height: 1)
                 HStack(spacing: 12) {
-                    IconDisc(symbol: "heart", tint: Palette.rose)
+                    TitleIcon(symbol: "heart", tint: Palette.rose)
                     VStack(alignment: .leading, spacing: 2) {
                         if done, let average = session.averageHeartRate {
                             Text("Average \(Int(average)) bpm").font(.rowTitle.monospacedDigit()).foregroundStyle(Palette.ink)
@@ -265,7 +265,7 @@ struct SimpleSessionView: View {
     private var completedCard: some View {
         Card {
             HStack(spacing: 14) {
-                IconDisc(symbol: "checkmark", tint: Palette.sage)
+                TitleIcon(symbol: "checkmark", tint: Palette.sage)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Logged").font(.rowTitle).foregroundStyle(Palette.ink)
                     Text("\(Format.minutes(session.actualMinutes ?? session.plannedMinutes))\(session.distanceKm.map { String(format: ", %.1f km", $0) } ?? ""), RPE \(Int((session.rpe ?? 0).rounded())), \(Format.load(session.load)) load units.\(session.healthWorkoutID != nil ? " From Apple Health." : session.importKey != nil ? " Imported; effort estimated from the run type." : "")")

@@ -26,7 +26,7 @@ struct WeekLoadChart: View {
         Card {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: "flame")
+                    TitleIcon(symbol: "flame")
                     Text("Load this week").font(.rowTitle).foregroundStyle(Palette.ink)
                     Spacer(minLength: 8)
                     Text("\(Format.load(logged)) of \(Format.load(total))")
