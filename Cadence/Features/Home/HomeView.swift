@@ -57,7 +57,15 @@ struct HomeView: View {
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle(greeting)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
+                        // Toolbar controls stay white like the back button; violet marks what is active.
+                        .tint(Palette.ink)
+                }
+            }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
@@ -99,46 +107,25 @@ struct HomeView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
         }
-        .statusBarScrim()
     }
 
     // MARK: Header and hero
 
+    /// Under the greeting, as the date range sits under Week's title.
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    Text(Format.dayMonth.string(from: now))
-                    if let forecast = forecast(on: now) {
-                        HStack(spacing: 4) {
-                            Image(systemName: forecast.condition.symbolName).symbolRenderingMode(.multicolor)
-                            Text(Format.temperature(forecast.tempMaxC)).monospacedDigit()
-                        }
-                        .accessibilityLabel("\(Format.temperature(forecast.tempMaxC)), \(forecast.condition.displayName)")
-                    }
+        HStack(spacing: 8) {
+            Text(Format.dayMonth.string(from: now))
+            if let forecast = forecast(on: now) {
+                HStack(spacing: 4) {
+                    Image(systemName: forecast.condition.symbolName).symbolRenderingMode(.multicolor)
+                    Text(Format.temperature(forecast.tempMaxC)).monospacedDigit()
                 }
-                .font(.body2)
-                .foregroundStyle(Palette.inkSecondary)
-                Text(greeting)
-                    .font(.system(size: 28, weight: .medium))
-                    .tracking(-0.4)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                .accessibilityLabel("\(Format.temperature(forecast.tempMaxC)), \(forecast.condition.displayName)")
             }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 8)
-            Button { showSettings = true } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: 50, height: 50)
-                    .background(Palette.raised, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
         }
-        .padding(.top, 8)
+        .font(.body2)
+        .foregroundStyle(Palette.inkSecondary)
+        .accessibilityElement(children: .combine)
     }
 
     private var greeting: String {
