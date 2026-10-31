@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  104 tests in under a second. Everything that decides what to train lives here, never in views.
+  106 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -26,6 +26,8 @@ and the weather, generates every strength session, and progresses load from reps
   - `Running/RunTargets.swift` - target pace from recent runs (Daniels VDOT, best run of eight weeks) and heart-rate zones (Karvonen when resting HR is known).
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
+  - `Features/Home/ExplainerSheet.swift` - what tapping Training load, Recovery, Monotony or Strain on Home slides up:
+    the number, a chart of the athlete's own data behind it, the sum with today's values, and what the planner does with it.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
   - `Services/HealthKitService.swift` - runs, yoga and strength workouts from Apple Health, effort from Workout Effort Score,
     and HRV, resting heart rate and sleep for recovery;

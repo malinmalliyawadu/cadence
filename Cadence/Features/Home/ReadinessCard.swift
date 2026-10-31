@@ -8,16 +8,22 @@ struct ReadinessCard: View {
     let snapshot: LoadSnapshot
     var recovery: RecoveryStatus?
     var lifting: RecoveryStatus.TodaysLifting = .none
+    /// Opens the explainer for the section tapped.
+    var onExplain: (Explainer) -> Void = { _ in }
 
     private var readiness: Readiness { Readiness.from(snapshot) }
 
     var body: some View {
         Card(padding: 18) {
             VStack(alignment: .leading, spacing: 16) {
-                load
+                Button { onExplain(.trainingLoad) } label: { load }
+                    .buttonStyle(.pressable)
+                    .accessibilityHint("Explains training load")
                 if let recovery {
                     Rectangle().fill(Palette.hairline).frame(height: 1)
-                    RecoverySection(recovery: recovery, lifting: lifting)
+                    Button { onExplain(.recovery) } label: { RecoverySection(recovery: recovery, lifting: lifting) }
+                        .buttonStyle(.pressable)
+                        .accessibilityHint("Explains recovery")
                 }
             }
         }
@@ -29,13 +35,9 @@ struct ReadinessCard: View {
             HStack(spacing: 10) {
                 IconDisc(symbol: zone.symbolName, tint: zone.tint)
                 Text("Training load").font(.rowTitle).foregroundStyle(Palette.ink)
+                InfoGlyph()
                 Spacer(minLength: 8)
-                Text(zone.displayName)
-                    .font(.label)
-                    .foregroundStyle(zone.tint)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .overlay { Capsule().strokeBorder(zone.tint.opacity(0.5), lineWidth: 1) }
+                StatusChip(text: zone.displayName, tint: zone.tint)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(Format.ratio(snapshot.acwr))
@@ -74,13 +76,9 @@ private struct RecoverySection: View {
             HStack(spacing: 10) {
                 IconDisc(symbol: "waveform.path.ecg", tint: tint)
                 Text("Recovery").font(.rowTitle).foregroundStyle(Palette.ink)
+                InfoGlyph()
                 Spacer(minLength: 8)
-                Text(recovery.level?.displayName ?? "Learning")
-                    .font(.label)
-                    .foregroundStyle(tint)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .overlay { Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1) }
+                StatusChip(text: recovery.level?.displayName ?? "Learning", tint: tint)
             }
             Text(recovery.headline(lifting))
                 .font(.body2)

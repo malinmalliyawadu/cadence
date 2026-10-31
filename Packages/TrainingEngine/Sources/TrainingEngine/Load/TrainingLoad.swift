@@ -71,6 +71,35 @@ public enum LoadZone: String, Sendable, Hashable {
     }
 }
 
+/// Foster's picture of the seven days ending on `date`: their total, and how evenly it was spread.
+public struct WeeklyLoad: Sendable, Hashable, Identifiable {
+    public var id: Date { date }
+    /// The last of the seven days.
+    public let date: Date
+    /// The seven days' load, summed.
+    public let load: Double
+    /// Mean daily load.
+    public let mean: Double
+    /// Standard deviation of daily load: how much the days differ.
+    public let spread: Double
+
+    /// Mean over spread. High when every day is much the same, low when hard days are followed
+    /// by easy ones. Nil when every day was the same, rest included.
+    public var monotony: Double? { spread > 0 ? mean / spread : nil }
+    /// Weekly load times monotony: a big week counts for more when it was also a flat one.
+    public var strain: Double? { monotony.map { load * $0 } }
+
+    public init(date: Date, days: [Double]) {
+        let total = days.reduce(0, +)
+        let mean = days.isEmpty ? 0 : total / Double(days.count)
+        let variance = days.isEmpty ? 0 : days.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(days.count)
+        self.date = date
+        load = total
+        self.mean = mean
+        spread = variance.squareRoot()
+    }
+}
+
 public struct LoadSnapshot: Sendable, Hashable {
     public let asOf: Date
     public let series: [DailyLoad]
@@ -81,6 +110,13 @@ public struct LoadSnapshot: Sendable, Hashable {
     public let strain: Double?
 
     public var today: DailyLoad? { series.last }
+    /// The seven days ending on each day of the series, from its seventh day on.
+    public var weekly: [WeeklyLoad] {
+        guard series.count >= 7 else { return [] }
+        return (6..<series.count).map { end in
+            WeeklyLoad(date: series[end].date, days: series[(end - 6)...end].map(\.load))
+        }
+    }
     public var acwr: Double? { today?.acwr }
     public var zone: LoadZone { LoadZone.zone(for: acwr) }
 }
@@ -92,6 +128,8 @@ public struct LoadSnapshot: Sendable, Hashable {
 public enum LoadAnalysis {
     public static let acuteDays = 7.0
     public static let chronicDays = 28.0
+    /// Foster's line: above this, the week was too flat for the hard days to be absorbed.
+    public static let monotonyLimit = 2.0
 
     /// Snapshot for planning a week that starts on `planningDate`. Uses the last completed
     /// day as the reference point: including a still-empty "today" would dilute the acute
@@ -131,19 +169,8 @@ public enum LoadAnalysis {
         }
 
         let lastWeek = series.suffix(7).map(\.load)
-        let weekLoad = lastWeek.reduce(0, +)
-        var monotony: Double?
-        var strain: Double?
-        if lastWeek.count == 7 {
-            let mean = weekLoad / 7
-            let variance = lastWeek.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / 7
-            let sd = variance.squareRoot()
-            if sd > 0 {
-                monotony = mean / sd
-                strain = weekLoad * (mean / sd)
-            }
-        }
-        return LoadSnapshot(asOf: asOf, series: series, weekLoad: weekLoad, monotony: monotony, strain: strain)
+        let week = lastWeek.count == 7 ? WeeklyLoad(date: end, days: lastWeek) : nil
+        return LoadSnapshot(asOf: asOf, series: series, weekLoad: lastWeek.reduce(0, +), monotony: week?.monotony, strain: week?.strain)
     }
 }
 
@@ -182,7 +209,11 @@ public struct Readiness: Sendable, Hashable {
 
     /// - Parameter recovery: today's recovery. Pass it only for a session on the day it was measured.
     public static func from(_ snapshot: LoadSnapshot, recovery: RecoveryStatus? = nil) -> Readiness {
-        let zone = snapshot.zone
+        from(zone: snapshot.zone, recovery: recovery)
+    }
+
+    /// What a load zone does to the week, before recovery is taken into account.
+    public static func from(zone: LoadZone, recovery: RecoveryStatus? = nil) -> Readiness {
         switch zone {
         case .building:
             return Readiness(loadMultiplier: 1, setReduction: 0, weeklyLoadFactor: 1.05, zone: zone,
