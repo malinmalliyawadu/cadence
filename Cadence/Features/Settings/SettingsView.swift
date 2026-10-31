@@ -63,8 +63,8 @@ struct SettingsView: View {
                             .font(.caption.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
                             .foregroundStyle(off ? Palette.inkTertiary : Palette.onAccent)
-                            .background(off ? Color.clear : Palette.accent, in: .capsule)
-                            .overlay(Capsule().strokeBorder(Palette.hairline))
+                            .contentShape(.capsule)
+                            .glassEffect(off ? .regular.interactive() : .regular.tint(Palette.accent).interactive(), in: .capsule)
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(dayNames[index]) \(off ? "unavailable" : "available")")
                         }

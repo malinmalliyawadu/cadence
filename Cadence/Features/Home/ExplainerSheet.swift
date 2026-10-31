@@ -41,17 +41,11 @@ struct ExplainerSheet: View {
         HStack(alignment: .center, spacing: 12) {
             Text(explainer.title).font(.title2).foregroundStyle(Palette.ink).accessibilityAddTraits(.isHeader)
             Spacer(minLength: 12)
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Palette.inkSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Palette.raised, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
+            Button { dismiss() } label: { GlassIcon(symbol: "xmark", size: 40) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Metrics.gutter)
         .padding(.top, 28)
         .padding(.bottom, 12)
     }
@@ -67,7 +61,7 @@ struct ExplainerSheet: View {
                     if let recovery { RecoveryExplainer(recovery: recovery, lifting: lifting) }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Metrics.gutter)
             .padding(.top, 4)
             .padding(.bottom, 40)
         }

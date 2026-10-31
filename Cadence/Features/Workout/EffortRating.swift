@@ -13,8 +13,11 @@ struct EffortCard: View {
                     Text(title).font(.rowTitle).foregroundStyle(Palette.ink)
                     Spacer()
                     Text("\(Int(rpe)), \(Self.word(for: rpe))").font(.numeralSmall).foregroundStyle(Palette.accent)
+                        .contentTransition(.numericText(value: rpe))
+                        .animation(Motion.settle, value: rpe)
                 }
                 Slider(value: $rpe, in: 1...10, step: 1)
+                    .sensoryFeedback(.selection, trigger: rpe)
                     .tint(Palette.accent)
                     .accessibilityLabel("Effort")
                     .accessibilityValue("\(Int(rpe)), \(Self.word(for: rpe))")
@@ -61,7 +64,7 @@ struct FinishSessionSheet: View {
             }
             .buttonStyle(.primary)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Metrics.gutter)
         .padding(.top, 28)
         .padding(.bottom, 12)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }

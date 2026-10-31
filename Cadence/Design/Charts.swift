@@ -27,7 +27,7 @@ struct ProgressRing<Center: View>: View {
                     .rotationEffect(.degrees(-90))
                     .padding(lineWidth / 2)
                     .opacity(clamped > gap ? 1 : 0)
-                    .animation(.snappy(duration: 0.35), value: clamped)
+                    .animation(Motion.settle, value: clamped)
                 knob(side: side, progress: clamped)
                 center
             }
@@ -69,7 +69,7 @@ struct ProgressRing<Center: View>: View {
             .frame(width: lineWidth * 0.9, height: lineWidth * 0.9)
             .offset(x: cos(angle) * radius, y: sin(angle) * radius)
             .opacity(progress > 0 ? 1 : 0)
-            .animation(.snappy(duration: 0.35), value: progress)
+            .animation(Motion.settle, value: progress)
             .accessibilityHidden(true)
     }
 }

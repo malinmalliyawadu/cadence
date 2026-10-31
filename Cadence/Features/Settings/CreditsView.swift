@@ -30,7 +30,7 @@ struct CreditsView: View {
                         ]
                     )
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.vertical, 12)
             }
         }

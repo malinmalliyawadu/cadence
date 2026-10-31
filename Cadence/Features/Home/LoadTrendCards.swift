@@ -13,7 +13,7 @@ struct LoadTrendCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Button(action: onExplain) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: "waveform.path.ecg")
+                    TitleIcon(symbol: "waveform.path.ecg")
                     Text("Acute against chronic").font(.rowTitle).foregroundStyle(Palette.ink)
                     InfoGlyph()
                     Spacer(minLength: 0)
@@ -74,7 +74,7 @@ struct LoadMixCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                IconDisc(symbol: "chart.bar")
+                TitleIcon(symbol: "chart.bar")
                 Text("Where the load comes from").font(.rowTitle).foregroundStyle(Palette.ink)
             }
             Chart(entries, id: \.date) { entry in
@@ -88,6 +88,8 @@ struct LoadMixCard: View {
                 Modality.yoga.displayName: Palette.orchid,
             ])
             .chartXAxis { dayAxis(window: window) }
+            // The bars run to the card's edge; room at the end keeps the last date whole.
+            .chartXScale(range: .plotDimension(endPadding: 36))
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
@@ -116,7 +118,7 @@ struct LoadMixCard: View {
     }
 }
 
-/// Date ticks every week, or every fortnight on the long window.
+/// Date ticks every week, or every fortnight on the long window, each label centred on its tick.
 private func dayAxis(window: Int) -> some AxisContent {
     AxisMarks(values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)

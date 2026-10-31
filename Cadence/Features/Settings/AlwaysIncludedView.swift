@@ -49,9 +49,9 @@ struct AlwaysIncludedView: View {
                         ForEach(items) { row($0, isIncluded: false) }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 32)
-                .animation(.snappy, value: included)
+                .animation(Motion.settle, value: included)
             }
             .scrollDismissesKeyboard(.interactively)
         }
@@ -62,7 +62,7 @@ struct AlwaysIncludedView: View {
 
     private func row(_ exercise: Exercise, isIncluded: Bool) -> some View {
         Button { toggle(exercise, isIncluded: isIncluded) } label: {
-            Card(cornerRadius: 18, padding: 14) {
+            Group {
                 HStack(alignment: .center, spacing: 12) {
                     MovementThumbnail(exercise: exercise, size: 52)
                     VStack(alignment: .leading, spacing: 4) {
@@ -76,9 +76,10 @@ struct AlwaysIncludedView: View {
                         .foregroundStyle(isIncluded ? Palette.accent : Palette.inkTertiary)
                 }
             }
-            .contentShape(.rect)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.option(isCurrent: isIncluded))
         .accessibilityLabel(exercise.name)
         .accessibilityValue(isIncluded ? "Included" : "Not included")
         .accessibilityHint(isIncluded ? "Removes it from every \(half.displayName.lowercased()) session" : "Adds it to every \(half.displayName.lowercased()) session")

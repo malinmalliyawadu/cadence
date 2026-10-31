@@ -36,7 +36,7 @@ struct LibraryView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Metrics.gutter)
                     .padding(.bottom, 40)
                 }
             }
@@ -116,7 +116,7 @@ struct ExerciseDetailView: View {
                     Card {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .center, spacing: 10) {
-                                IconDisc(symbol: "arrow.up.right", tint: Palette.accent)
+                                TitleIcon(symbol: "arrow.up.right", tint: Palette.accent)
                                 Text("Next time").font(.rowTitle).foregroundStyle(Palette.ink)
                                 Spacer()
                                 Text(Format.weight(next.weightKg)).font(.numeral).foregroundStyle(Palette.ink)
@@ -149,7 +149,7 @@ struct ExerciseDetailView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 40)
             }
         }
@@ -160,7 +160,7 @@ struct ExerciseDetailView: View {
     private var trendChart: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                IconDisc(symbol: "chart.line.uptrend.xyaxis")
+                TitleIcon(symbol: "chart.line.uptrend.xyaxis")
                 Text("Estimated one-rep max").font(.rowTitle).foregroundStyle(Palette.ink)
             }
             Chart(points, id: \.date) { point in

@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var now = Date.now
     @State private var window = 42
     @State private var explainer: Explainer?
+    @Namespace private var zoom
 
     private var calendar: Calendar { coordinator.calendar }
     private var startOfToday: Date { calendar.startOfDay(for: now) }
@@ -53,13 +54,16 @@ struct HomeView: View {
                     dashboard
                 } else {
                     VStack(spacing: 0) {
-                        header.padding(.horizontal, 20)
+                        header.padding(.horizontal, Metrics.gutter)
                         EmptyPlanView()
                     }
                 }
             }
+            // The greeting is part of the page and scrolls away with it; the bar keeps only its
+            // buttons, so nothing takes its place as an inline title.
             .navigationTitle(greeting)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(removing: .title)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
@@ -69,7 +73,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(item: $explainer) { ExplainerSheet(explainer: $0, snapshot: snapshot, recovery: recovery, lifting: todaysLifting) }
-            .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
+            .zoomsSessions(in: zoom)
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
         }
     }
@@ -97,7 +101,8 @@ struct HomeView: View {
                             ForEach(Array(comingUp.enumerated()), id: \.element.id) { index, session in
                                 if index > 0 { Divider().overlay(Palette.hairline).padding(.leading, 70) }
                                 NavigationLink(value: session) { UpcomingRow(session: session, now: now) }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .sessionZoomSource(session, cornerRadius: 22)
                             }
                         }
                         .surface()
@@ -106,15 +111,27 @@ struct HomeView: View {
                 trends
                 howLoadIsRead
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Metrics.gutter)
             .padding(.bottom, 40)
         }
     }
 
     // MARK: Header and hero
 
-    /// Under the greeting, as the date range sits under Week's title.
+    /// The greeting, set as the other tabs' large titles are, with the date and weather under it.
     private var header: some View {
+        // Spaced as Week's date range sits under its title.
+        VStack(alignment: .leading, spacing: 9) {
+            Text(greeting)
+                .font(.largeTitle.bold())
+                .foregroundStyle(Palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            dateLine
+        }
+    }
+
+    /// Under the greeting, as the date range sits under Week's title.
+    private var dateLine: some View {
         HStack(spacing: 8) {
             Text(Format.dayMonth.string(from: now))
             if let forecast = forecast(on: now) {

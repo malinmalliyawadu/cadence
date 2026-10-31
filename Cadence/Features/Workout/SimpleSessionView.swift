@@ -43,7 +43,9 @@ struct SimpleSessionView: View {
                         }
                         effort
                         Button {
-                            coordinator.complete(session, minutes: minutes, rpe: rpe, distanceKm: session.modality == .running ? distance : nil, in: context)
+                            withAnimation(Motion.reveal) {
+                                coordinator.complete(session, minutes: minutes, rpe: rpe, distanceKm: session.modality == .running ? distance : nil, in: context)
+                            }
                             UINotificationFeedbackGenerator().notificationOccurred(.success)
                         } label: {
                             Label("Log \(session.modality == .running ? "run" : "class")", systemImage: "checkmark")
@@ -53,7 +55,7 @@ struct SimpleSessionView: View {
 
                     if session.modality == .running, let forecast { weatherCard(forecast) }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -78,7 +80,7 @@ struct SimpleSessionView: View {
                 }
             } else if session.status == .completed {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Reopen", systemImage: "arrow.uturn.backward") { coordinator.reopen(session, in: context) }
+                    Button("Reopen", systemImage: "arrow.uturn.backward") { withAnimation(Motion.reveal) { coordinator.reopen(session, in: context) } }
                         .tint(Palette.ink)
                 }
             }
@@ -106,6 +108,7 @@ struct SimpleSessionView: View {
                     Image(systemName: isDone ? "checkmark" : session.modality.symbolName)
                         .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(Palette.ink)
+                        .contentTransition(.symbolEffect(.replace))
                         .frame(width: 48, height: 48)
                         .background(Color.white.opacity(0.1), in: .circle)
                         .padding(.bottom, 6)
@@ -137,14 +140,10 @@ struct SimpleSessionView: View {
 
     private func ringButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) { action() }
+            withAnimation(Motion.settle) { action() }
             UISelectionFeedbackGenerator().selectionChanged()
         } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.ink)
-                .frame(width: 44, height: 44)
-                .background(Palette.raised, in: .circle)
+            GlassIcon(symbol: symbol)
         }
         .buttonStyle(.plain)
         .buttonRepeatBehavior(.enabled)
@@ -179,7 +178,7 @@ struct SimpleSessionView: View {
                 }
                 Rectangle().fill(Palette.hairline).frame(height: 1)
                 HStack(spacing: 12) {
-                    IconDisc(symbol: "heart", tint: Palette.rose)
+                    TitleIcon(symbol: "heart", tint: Palette.rose)
                     VStack(alignment: .leading, spacing: 2) {
                         if done, let average = session.averageHeartRate {
                             Text("Average \(Int(average)) bpm").font(.rowTitle.monospacedDigit()).foregroundStyle(Palette.ink)
@@ -211,22 +210,19 @@ struct SimpleSessionView: View {
     }
 
     private var chips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Chip(symbol: "clock", text: "\(Int(session.plannedMinutes)) min planned")
-                Chip(symbol: "gauge.with.dots.needle.50percent", text: "RPE \(Int((session.status == .completed ? session.rpe ?? rpe : rpe).rounded()))")
-                if session.modality == .running {
-                    Chip(symbol: "point.topleft.down.to.point.bottomright.curvepath", text: String(format: "%.1f km", session.distanceKm ?? distance))
-                }
-                if session.status == .completed, let energy = session.activeKilocalories {
-                    Chip(symbol: "flame", text: Format.kcal(energy))
-                }
-                if session.status == .planned {
-                    ChangeSessionMenu(session: session)
-                }
+        ChipFlow {
+            Chip(symbol: "clock", text: "\(Int(session.plannedMinutes)) min planned")
+            Chip(symbol: "gauge.with.dots.needle.50percent", text: "RPE \(Int((session.status == .completed ? session.rpe ?? rpe : rpe).rounded()))")
+            if session.modality == .running {
+                Chip(symbol: "point.topleft.down.to.point.bottomright.curvepath", text: String(format: "%.1f km", session.distanceKm ?? distance))
+            }
+            if session.status == .completed, let energy = session.activeKilocalories {
+                Chip(symbol: "flame", text: Format.kcal(energy))
+            }
+            if session.status == .planned {
+                ChangeSessionButton(session: session)
             }
         }
-        .scrollClipDisabled()
     }
 
     private var effort: some View {
@@ -269,7 +265,7 @@ struct SimpleSessionView: View {
     private var completedCard: some View {
         Card {
             HStack(spacing: 14) {
-                IconDisc(symbol: "checkmark", tint: Palette.sage)
+                TitleIcon(symbol: "checkmark", tint: Palette.sage)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Logged").font(.rowTitle).foregroundStyle(Palette.ink)
                     Text("\(Format.minutes(session.actualMinutes ?? session.plannedMinutes))\(session.distanceKm.map { String(format: ", %.1f km", $0) } ?? ""), RPE \(Int((session.rpe ?? 0).rounded())), \(Format.load(session.load)) load units.\(session.healthWorkoutID != nil ? " From Apple Health." : session.importKey != nil ? " Imported; effort estimated from the run type." : "")")
