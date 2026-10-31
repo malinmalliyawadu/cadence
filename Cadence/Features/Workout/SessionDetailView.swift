@@ -1,17 +1,14 @@
 import SwiftUI
 
-/// A session on its own screen, without the tab bar: in the gym the screen belongs to the session,
-/// and the rest card takes the bottom edge.
+/// A session on its own screen. The tab bar stays: hiding it here made it reappear with a jump
+/// once the zoom back to Home had finished, and it minimises on scroll anyway.
 struct SessionDetailView: View {
     let session: TrainingSession
 
     var body: some View {
-        Group {
-            switch session.modality {
-            case .strength: StrengthSessionView(session: session)
-            case .running, .yoga: SimpleSessionView(session: session)
-            }
+        switch session.modality {
+        case .strength: StrengthSessionView(session: session)
+        case .running, .yoga: SimpleSessionView(session: session)
         }
-        .toolbarVisibility(.hidden, for: .tabBar)
     }
 }
