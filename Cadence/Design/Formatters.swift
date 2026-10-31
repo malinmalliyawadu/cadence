@@ -54,6 +54,9 @@ enum Format {
 
     static func load(_ au: Double) -> String { Int(au.rounded()).formatted() }
 
+    /// "1.7", or a dash when the week has no spread to divide by.
+    static func monotony(_ value: Double?) -> String { value.map { String(format: "%.1f", $0) } ?? "–" }
+
     /// "7 h 20 m" for hours asleep.
     static func sleep(_ hours: Double) -> String {
         let m = Int((hours * 60).rounded())

@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var now = Date.now
     @State private var window = 42
+    @State private var explainer: Explainer?
 
     private var calendar: Calendar { coordinator.calendar }
     private var startOfToday: Date { calendar.startOfDay(for: now) }
@@ -67,6 +68,7 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(item: $explainer) { ExplainerSheet(explainer: $0, snapshot: snapshot, recovery: recovery, lifting: todaysLifting) }
             .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
         }
@@ -81,7 +83,7 @@ struct HomeView: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeader(title: "Readiness")
-                    ReadinessCard(snapshot: snapshot, recovery: recovery, lifting: todaysLifting)
+                    ReadinessCard(snapshot: snapshot, recovery: recovery, lifting: todaysLifting) { explainer = $0 }
                     tiles
                 }
                 VStack(alignment: .leading, spacing: 12) {
@@ -102,7 +104,7 @@ struct HomeView: View {
                     }
                 }
                 trends
-                explainer
+                howLoadIsRead
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)
@@ -159,12 +161,21 @@ struct HomeView: View {
         let done = weekSessions.filter { $0.status == .completed }.count
         let counted = weekSessions.filter { $0.status != .skipped }.count
         let monotony = snapshot.monotony
+        let isFlat = (monotony ?? 0) > LoadAnalysis.monotonyLimit
         return HStack(spacing: 10) {
             StatTile(title: "Sessions", value: "\(done)", unit: "of \(counted) this week")
-            StatTile(title: "Monotony", value: monotony.map { String(format: "%.1f", $0) } ?? "–",
-                     unit: monotony.map { $0 > 2 ? "too flat" : "varied" } ?? "",
-                     tint: (monotony ?? 0) > 2 ? Palette.amber : Palette.inkTertiary)
-            StatTile(title: "Strain", value: snapshot.strain.map { Format.load($0) } ?? "–", unit: "last 7 days")
+            Button { explainer = .monotony } label: {
+                StatTile(title: "Monotony", value: Format.monotony(monotony),
+                         unit: monotony.map { _ in isFlat ? "too flat" : "varied" } ?? "",
+                         tint: isFlat ? Palette.amber : Palette.inkTertiary, explains: true)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint("Explains monotony")
+            Button { explainer = .strain } label: {
+                StatTile(title: "Strain", value: snapshot.strain.map { Format.load($0) } ?? "–", unit: "last 7 days", explains: true)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint("Explains strain")
         }
     }
 
@@ -195,13 +206,13 @@ struct HomeView: View {
                 SectionHeader(title: "Trend") {
                     MenuChip(title: "Window", selection: $window, options: [(28, "4 weeks"), (42, "6 weeks"), (84, "12 weeks")])
                 }
-                LoadTrendCard(series: series, window: window)
+                LoadTrendCard(series: series, window: window) { explainer = .trainingLoad }
                 LoadMixCard(entries: byModality, window: window)
             }
         }
     }
 
-    private var explainer: some View {
+    private var howLoadIsRead: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("How load is read").font(.rowTitle).foregroundStyle(Palette.ink)
             Text("Every session becomes one number: how hard it felt, times how long it took. Lifting, running and yoga share the scale, so a long run can be weighed against a leg day. Acute is the last week, chronic the last month. Between 0.8 and 1.3 you are adapting; above 1.5 the week got ahead of your base and the planner pulls back.")

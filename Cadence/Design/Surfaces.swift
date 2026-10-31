@@ -59,6 +59,33 @@ struct Chip: View {
     }
 }
 
+/// A status word in its tint, outlined in the same: "Sweet spot", "Recovered", "Too flat".
+struct StatusChip: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.label)
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .overlay { Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1) }
+            .fixedSize()
+    }
+}
+
+/// Beside a title whose figure opens an explainer.
+struct InfoGlyph: View {
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Palette.inkTertiary)
+            .accessibilityHidden(true)
+    }
+}
+
 /// A small outlined circle holding a glyph, used ahead of a stat's title.
 struct IconDisc: View {
     let symbol: String
@@ -223,6 +250,20 @@ struct SecondaryButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.8 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
     }
+}
+
+/// A card, or part of one, that opens something: it dims under the finger, nothing more.
+struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PressableButtonStyle {
+    static var pressable: PressableButtonStyle { PressableButtonStyle() }
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle {
