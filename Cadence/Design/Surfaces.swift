@@ -7,20 +7,6 @@ struct ScreenBackground: View {
     }
 }
 
-extension View {
-    /// Keeps scrolled content out from under the status bar on screens without a navigation bar.
-    func statusBarScrim() -> some View {
-        overlay(alignment: .top) {
-            GeometryReader { proxy in
-                Palette.canvas
-                    .frame(height: proxy.safeAreaInsets.top)
-                    .ignoresSafeArea(edges: .top)
-            }
-            .allowsHitTesting(false)
-        }
-    }
-}
-
 /// A flat card, no edge: the indigo surface against the black is the whole of it. What is active
 /// says so with its content (the violet button, the set being logged), never with an outline.
 struct Card<Content: View>: View {
