@@ -10,7 +10,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .home
 
-    enum Tab: Hashable { case home, week, library }
+    enum Tab: Hashable { case home, week, history }
 
     var body: some View {
         TabView(selection: $selection) {
@@ -20,8 +20,8 @@ struct RootView: View {
             SwiftUI.Tab("Week", systemImage: "calendar", value: .week) {
                 WeekView()
             }
-            SwiftUI.Tab("Library", systemImage: "books.vertical.fill", value: .library) {
-                LibraryView()
+            SwiftUI.Tab("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90", value: .history) {
+                HistoryView()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
