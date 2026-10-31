@@ -60,6 +60,8 @@ struct UpNextCard: View {
                 }
             }
         }
+        // The session opens out of the whole card, not just its button.
+        .sessionZoomSource(session, cornerRadius: 26)
     }
 
     /// "Up next", "Tomorrow", "Thursday".
@@ -152,15 +154,9 @@ struct UpNextCard: View {
         chipRow { weatherChips(forecast) }
     }
 
-    /// Chips that scroll rather than squeeze, so a wet, windy day never truncates. The row runs
-    /// out to just inside the card's border, where it clips, and rests in line with the content.
+    /// Chips that wrap rather than squeeze or scroll, so a wet, windy day takes a second line.
     private func chipRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        let bleed = Self.padding - 1.5 // the active border's width
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { content() }
-        }
-        .contentMargins(.horizontal, bleed, for: .scrollContent)
-        .padding(.horizontal, -bleed)
+        ChipFlow { content() }
     }
 
     @ViewBuilder

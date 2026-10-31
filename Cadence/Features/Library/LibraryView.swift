@@ -36,7 +36,7 @@ struct LibraryView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Metrics.gutter)
                     .padding(.bottom, 40)
                 }
             }
@@ -149,7 +149,7 @@ struct ExerciseDetailView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 40)
             }
         }

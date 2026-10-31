@@ -51,7 +51,7 @@ struct EmptyPlanView: View {
             }
             Spacer().frame(height: 24)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Metrics.gutter)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             importing = true
             Task {

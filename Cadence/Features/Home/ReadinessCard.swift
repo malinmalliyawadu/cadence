@@ -119,6 +119,7 @@ private func figure(_ title: String, _ value: String?, usual: String? = nil, fla
 }
 
 /// A flat track split into the ratio's zones, the current one lit, with a marker at today's ratio.
+/// The track is inset by the marker's radius, so the marker stays inside it at either end.
 struct ZoneGauge: View {
     let acwr: Double?
 
@@ -127,11 +128,12 @@ struct ZoneGauge: View {
         (0.4...0.8, .undertrained), (0.8...1.3, .optimal), (1.3...1.5, .elevated), (1.5...1.8, .danger),
     ]
     private static let ticks = [0.8, 1.3, 1.5]
+    private static let marker: CGFloat = 18
 
     var body: some View {
         let current = LoadZone.zone(for: acwr)
         GeometryReader { proxy in
-            let width = proxy.size.width
+            let width = proxy.size.width - Self.marker
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 3) {
                     ForEach(Self.bands, id: \.1) { band, zone in
@@ -141,14 +143,14 @@ struct ZoneGauge: View {
                     }
                 }
                 .frame(height: 8)
-                .offset(y: 5)
+                .offset(x: Self.marker / 2, y: 5)
                 if let acwr {
                     Circle()
                         .fill(.white)
                         .overlay { Circle().strokeBorder(Palette.canvas, lineWidth: 3) }
-                        .frame(width: 18, height: 18)
-                        .offset(x: x(for: acwr, width: width) - 9)
-                        .animation(.snappy(duration: 0.35), value: acwr)
+                        .frame(width: Self.marker, height: Self.marker)
+                        .offset(x: x(for: acwr, width: width) - Self.marker / 2)
+                        .animation(Motion.settle, value: acwr)
                 }
                 ForEach(Self.ticks, id: \.self) { tick in
                     Text(String(format: "%.1f", tick))
@@ -168,6 +170,6 @@ struct ZoneGauge: View {
 
     private func x(for value: Double, width: CGFloat) -> CGFloat {
         let clamped = min(max(value, Self.range.lowerBound), Self.range.upperBound)
-        return CGFloat((clamped - Self.range.lowerBound) / span) * width
+        return Self.marker / 2 + CGFloat((clamped - Self.range.lowerBound) / span) * width
     }
 }

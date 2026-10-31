@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var now = Date.now
     @State private var window = 42
     @State private var explainer: Explainer?
+    @Namespace private var zoom
 
     private var calendar: Calendar { coordinator.calendar }
     private var startOfToday: Date { calendar.startOfDay(for: now) }
@@ -53,7 +54,7 @@ struct HomeView: View {
                     dashboard
                 } else {
                     VStack(spacing: 0) {
-                        header.padding(.horizontal, 20)
+                        header.padding(.horizontal, Metrics.gutter)
                         EmptyPlanView()
                     }
                 }
@@ -69,7 +70,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(item: $explainer) { ExplainerSheet(explainer: $0, snapshot: snapshot, recovery: recovery, lifting: todaysLifting) }
-            .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
+            .zoomsSessions(in: zoom)
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
         }
     }
@@ -97,7 +98,8 @@ struct HomeView: View {
                             ForEach(Array(comingUp.enumerated()), id: \.element.id) { index, session in
                                 if index > 0 { Divider().overlay(Palette.hairline).padding(.leading, 70) }
                                 NavigationLink(value: session) { UpcomingRow(session: session, now: now) }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .sessionZoomSource(session, cornerRadius: 22)
                             }
                         }
                         .surface()
@@ -106,7 +108,7 @@ struct HomeView: View {
                 trends
                 howLoadIsRead
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Metrics.gutter)
             .padding(.bottom, 40)
         }
     }

@@ -49,9 +49,9 @@ struct AlwaysIncludedView: View {
                         ForEach(items) { row($0, isIncluded: false) }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, Metrics.gutter)
                 .padding(.bottom, 32)
-                .animation(.snappy, value: included)
+                .animation(Motion.settle, value: included)
             }
             .scrollDismissesKeyboard(.interactively)
         }

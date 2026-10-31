@@ -57,7 +57,7 @@ struct ChangeSessionMenu: View {
                 }
             }
         } label: {
-            Chip(symbol: "arrow.triangle.swap", text: "Change", tint: Palette.accent)
+            Chip(symbol: "arrow.triangle.swap", text: "Change", tint: Palette.accent, glass: true)
                 .contentShape(.capsule)
         }
         .disabled(!isAvailable)

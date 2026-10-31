@@ -60,6 +60,8 @@ struct WeekLoadChart: View {
                     ForEach(days) { day in column(day) }
                 }
                 .padding(.leading, axisWidth + 12)
+                // A session logged or re-planned grows or shrinks its day's bar.
+                .animation(Motion.settle, value: days.map(\.total))
             }
             .frame(height: plotHeight, alignment: .bottom)
 
@@ -103,11 +105,12 @@ struct WeekLoadChart: View {
         }.joined(separator: ", ")
     }
 
-    /// Rounds up to 1, 2, 2.5 or 5 times a power of ten so the axis reads in round numbers.
+    /// Rounds up to the next value whose quarters are round numbers (1,200 reads 300, 600, 900),
+    /// in steps fine enough that the tallest bar fills most of the plot.
     static func niceCeiling(_ value: Double) -> Double {
         guard value > 0 else { return 100 }
         let magnitude = pow(10, floor(log10(value)))
-        let step = [1, 2, 2.5, 5, 10].first { $0 * magnitude >= value } ?? 10
+        let step = [1, 1.2, 1.6, 2, 2.4, 3.2, 4, 6, 8, 10].first { $0 * magnitude >= value } ?? 10
         return step * magnitude
     }
 }

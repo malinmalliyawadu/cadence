@@ -9,6 +9,7 @@ struct WeekView: View {
     @Query(sort: \ForecastDay.date) private var forecasts: [ForecastDay]
     @State private var weekOffset = 0
     @State private var confirmReplan = false
+    @Namespace private var zoom
 
     private var calendar: Calendar { coordinator.calendar }
     private var weekStart: Date {
@@ -37,7 +38,7 @@ struct WeekView: View {
                             replanButton
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Metrics.gutter)
                     .padding(.bottom, 40)
                 }
             }
@@ -45,11 +46,12 @@ struct WeekView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    MenuChip(title: "Week", selection: $weekOffset, options: [(0, "This week"), (1, "Next week")])
+                    // The toolbar draws the glass, as it does for every other header button.
+                    MenuChip(title: "Week", selection: $weekOffset, options: [(0, "This week"), (1, "Next week")], glass: false)
+                        .tint(Palette.ink)
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
-            .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
+            .zoomsSessions(in: zoom)
         }
     }
 
@@ -159,7 +161,8 @@ struct DayCard: View {
                             }
                             .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
+                        .sessionZoomSource(session, cornerRadius: 12)
                         .opacity(session.status == .skipped ? 0.5 : 1)
                     }
                 }

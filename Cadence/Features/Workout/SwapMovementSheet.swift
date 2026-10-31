@@ -42,7 +42,7 @@ struct SwapMovementSheet: View {
                             ForEach(filtered) { row($0) }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Metrics.gutter)
                     .padding(.bottom, 32)
                 }
                 .scrollDismissesKeyboard(.interactively)

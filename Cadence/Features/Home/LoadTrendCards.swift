@@ -116,9 +116,10 @@ struct LoadMixCard: View {
     }
 }
 
-/// Date ticks every week, or every fortnight on the long window.
+/// Date ticks every week, or every fortnight on the long window. Aligned, so the labels at either
+/// end stay inside the plot instead of clipping at the card's edge.
 private func dayAxis(window: Int) -> some AxisContent {
-    AxisMarks(values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
+    AxisMarks(preset: .aligned, values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)
         AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
     }
