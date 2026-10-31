@@ -220,7 +220,7 @@ struct SimpleSessionView: View {
                 Chip(symbol: "flame", text: Format.kcal(energy))
             }
             if session.status == .planned {
-                ChangeSessionMenu(session: session)
+                ChangeSessionButton(session: session)
             }
         }
     }

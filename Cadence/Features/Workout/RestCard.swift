@@ -4,7 +4,7 @@ import TrainingEngine
 /// The rest between sets, pinned under the session while it runs: the countdown in violet, the set
 /// it leads to, and buttons to take or add half a minute or skip it. When it runs out it says
 /// "Rest over" in violet and counts the time since, until the next set is logged. It floats over
-/// the sets, so it is glass, and its controls are outlined rather than glass on glass.
+/// the sets, so it is glass, and its controls are clear glass on it, as a sheet's toolbar is.
 struct RestCard: View {
     let state: RestActivityAttributes.ContentState
     let onAdjust: (Double) -> Void
@@ -28,25 +28,20 @@ struct RestCard: View {
                     .accessibilityElement(children: .combine)
                     Spacer(minLength: 4)
                     Button { onAdjust(-RestTimerStep.seconds) } label: {
-                        Chip(text: "−\(Int(RestTimerStep.seconds)) s", tint: Palette.inkSecondary)
+                        Chip(text: "−\(Int(RestTimerStep.seconds)) s", tint: Palette.inkSecondary, glass: true)
                     }
                     .buttonStyle(.control)
                     .disabled(isOver)
                     .opacity(isOver ? 0.4 : 1)
                     .accessibilityLabel("Take \(Int(RestTimerStep.seconds)) seconds off the rest")
                     Button { onAdjust(RestTimerStep.seconds) } label: {
-                        Chip(text: "+\(Int(RestTimerStep.seconds)) s", tint: Palette.inkSecondary)
+                        Chip(text: "+\(Int(RestTimerStep.seconds)) s", tint: Palette.inkSecondary, glass: true)
                     }
                     .buttonStyle(.control)
                     .accessibilityLabel("Add \(Int(RestTimerStep.seconds)) seconds of rest")
                     Button(action: onSkip) {
-                        Image(systemName: isOver ? "xmark" : "forward.end")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Palette.ink)
+                        GlassIcon(symbol: isOver ? "xmark" : "forward.end", size: 40)
                             .contentTransition(.symbolEffect(.replace))
-                            .frame(width: 40, height: 40)
-                            .overlay { Circle().strokeBorder(Palette.stroke, lineWidth: 1) }
-                            .contentShape(.circle)
                     }
                     .buttonStyle(.control)
                     .accessibilityLabel(isOver ? "Dismiss the rest" : "Skip the rest")

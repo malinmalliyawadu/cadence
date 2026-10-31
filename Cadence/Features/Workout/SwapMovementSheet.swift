@@ -69,7 +69,7 @@ struct SwapMovementSheet: View {
 
     private func row(_ option: SwapOption) -> some View {
         Button { swap(to: option) } label: {
-            Card(cornerRadius: 18, padding: 14) {
+            Group {
                 HStack(alignment: .center, spacing: 12) {
                     MovementThumbnail(exercise: option.exercise)
                     VStack(alignment: .leading, spacing: 4) {
@@ -86,9 +86,10 @@ struct SwapMovementSheet: View {
                         .foregroundStyle((loads[option.id] ?? nil) == nil ? Palette.inkTertiary : Palette.ink)
                 }
             }
-            .contentShape(.rect)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.option)
         .accessibilityHint("Replaces \(exercise.name) in this session")
         // Press and hold to see how a movement moves before committing to it.
         .contextMenu {

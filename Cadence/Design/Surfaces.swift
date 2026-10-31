@@ -215,7 +215,8 @@ struct MenuChip<Value: Hashable>: View {
     }
 }
 
-/// A row of capsules that behaves like a segmented control. The violet slides to the one picked.
+/// A segmented control on glass: one glass track, with the violet sliding to the segment picked.
+/// The Library's halves, reps in reserve, a session's half.
 struct ChipPicker<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
@@ -223,7 +224,7 @@ struct ChipPicker<Value: Hashable>: View {
     @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(options, id: \.0) { value, label in
                 let isSelected = value == selection
                 Button {
@@ -232,13 +233,10 @@ struct ChipPicker<Value: Hashable>: View {
                     Text(label)
                         .font(.system(size: 15, weight: .medium).monospacedDigit())
                         .foregroundStyle(isSelected ? Palette.onAccent : Palette.inkSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: 40)
                         .background {
-                            ZStack {
-                                Capsule().fill(Palette.raised)
-                                if isSelected {
-                                    Capsule().fill(Palette.accent).matchedGeometryEffect(id: "selection", in: pill)
-                                }
+                            if isSelected {
+                                Capsule().fill(Palette.accent).matchedGeometryEffect(id: "selection", in: pill)
                             }
                         }
                         .contentShape(.capsule)
@@ -247,14 +245,16 @@ struct ChipPicker<Value: Hashable>: View {
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
+        .padding(4)
+        .glassEffect(.regular.interactive(), in: .capsule)
         .sensoryFeedback(.selection, trigger: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }
 }
 
-/// The one violet capsule on a screen, its label in the icon's indigo. Solid, not glass: it is
-/// the thing to do, and glass is for everything around it.
+/// The one violet capsule on a screen, its label in the icon's indigo: glass tinted with the
+/// icon's violet, so it is the thing to do and still made of what everything around it is.
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
@@ -263,15 +263,13 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.system(size: 17, weight: .semibold))
             .foregroundStyle(isEnabled ? Palette.onAccent : Palette.inkTertiary)
             .frame(maxWidth: .infinity, minHeight: 54)
-            .background(isEnabled ? Palette.accent : Palette.raised, in: .capsule)
             .contentShape(.capsule)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
+            .glassEffect(isEnabled ? .regular.tint(Palette.accent).interactive() : .regular, in: .capsule)
             .animation(Motion.settle, value: isEnabled)
     }
 }
 
-/// Everything that is an action but not the action, on glass.
+/// Everything that is an action but not the action, on clear glass.
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
@@ -304,6 +302,27 @@ struct ControlButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.75 : 1)
             .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// A choice laid out as a row or a tile (a focus, a run type, a day, a replacement movement):
+/// glass in the shape it is given, lit with the violet when it is the current one.
+struct OptionButtonStyle: ButtonStyle {
+    var cornerRadius: CGFloat = 18
+    var isCurrent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect(cornerRadius: cornerRadius, style: .continuous))
+            .glassEffect(isCurrent ? .regular.tint(Palette.accent.opacity(0.35)).interactive() : .regular.interactive(),
+                         in: .rect(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+extension ButtonStyle where Self == OptionButtonStyle {
+    static var option: OptionButtonStyle { OptionButtonStyle() }
+    static func option(cornerRadius: CGFloat = 18, isCurrent: Bool) -> OptionButtonStyle {
+        OptionButtonStyle(cornerRadius: cornerRadius, isCurrent: isCurrent)
     }
 }
 

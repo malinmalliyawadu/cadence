@@ -149,8 +149,11 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   outline, active or not (Malin dislikes borders round cards, and finds gradients anywhere tacky). The icon's violet
   is the one accent for whatever is active (the session to start, the movement being logged, the one primary button,
   its label in the icon's indigo), and the icon's mint dot is for today alone (today's bar and day label, the head of
-  a progress ring). Liquid Glass for controls (toolbar and section-header menus, "Change", secondary buttons,
-  steppers, the floating rest card), never glass on glass; the one primary button stays solid violet. Outlined chips for facts, a progress ring as the hero on run and yoga screens, hatched bars for
+  a progress ring). Every control is Liquid Glass: toolbar and section-header menus, segmented pickers
+  (one glass track, the violet sliding), secondary buttons, steppers, option rows and tiles, and the floating rest card.
+  The one primary button is glass tinted with the violet. Cards that open something stay flat cards.
+  "Change" opens a sheet (`Features/Workout/ChangeSheets.swift`) rather than a menu: focus tiles, run types, and the
+  week's other days as rows. Outlined chips for facts, a progress ring as the hero on run and yoga screens, hatched bars for
   weekly load, the icon's mark (`OrbitMark`) on the empty week. Words at medium weight, numbers semibold monospaced.
   Running and yoga use sky and orchid, either side of the violet, only where charts need to tell modalities apart.
   Weight and reps take keyboard entry as well as the steppers. Side margins are `Metrics.gutter` (16), in line with

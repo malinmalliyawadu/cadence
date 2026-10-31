@@ -149,7 +149,7 @@ struct StrengthSessionView: View {
                     Chip(symbol: "gauge.with.dots.needle.50percent", text: "\(String(format: "%.1f", rir)) RIR")
                 }
                 if session.status == .planned, session.loggedSetCount == 0 {
-                    ChangeSessionMenu(session: session)
+                    ChangeSessionButton(session: session)
                 }
             }
         }
@@ -371,7 +371,7 @@ struct ExerciseCard: View {
         }
     }
 
-    /// A warm-up set, outlined rather than filled so it reads lighter than a working set. Tapping
+    /// A warm-up set, on clear glass rather than filled so it reads lighter than a working set. Tapping
     /// ticks it and those before it off; tapping a ticked one undoes it and those after it.
     private func warmUpRow(_ set: WarmUpSet, at index: Int) -> some View {
         let done = index < exercise.warmUpsDone
@@ -402,18 +402,14 @@ struct ExerciseCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Palette.inkTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                    .padding(.trailing, 14)
+                    // Centred where the working sets' glass buttons are.
+                    .padding(.trailing, 18)
                     .frame(width: 58, height: 44, alignment: .trailing)
             }
             .padding(.leading, 14)
             .frame(minHeight: 48)
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Palette.stroke, lineWidth: 1)
-            }
-            .contentShape(.rect)
         }
-        .buttonStyle(.control)
+        .buttonStyle(.option(cornerRadius: 14, isCurrent: false))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Warm-up \(index + 1), \(Format.kg(set.weightKg)) kilograms for \(set.reps) reps")
         .accessibilityValue(done ? "Done" : "Not done")
@@ -504,15 +500,13 @@ struct ExerciseCard: View {
                 } label: {
                     // Inset from the edge as far as the set number is on the left, with the
                     // inset still part of the tap target.
-                    Image(systemName: logged ? "arrow.uturn.backward" : "pencil")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? Palette.accent : Palette.inkTertiary)
+                    GlassIcon(symbol: logged ? "arrow.uturn.backward" : "pencil", size: 34)
                         .contentTransition(.symbolEffect(.replace))
-                        .padding(.trailing, 14)
+                        .padding(.trailing, 7)
                         .frame(width: 58, height: 44, alignment: .trailing)
                         .contentShape(.rect)
                 }
-                .buttonStyle(.control)
+                .buttonStyle(.plain)
                 .accessibilityLabel(logged ? "Undo set \(index + 1)" : "Change set \(index + 1)")
             }
         }

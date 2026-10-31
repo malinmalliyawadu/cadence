@@ -145,7 +145,7 @@ struct DayCard: View {
                             .font(.rowTitle)
                             .foregroundStyle(Palette.inkTertiary)
                         Spacer(minLength: 0)
-                        RestDayMenu(date: date)
+                        RestDayButton(date: date)
                     }
                 } else {
                     ForEach(sessions) { session in

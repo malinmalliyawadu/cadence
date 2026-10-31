@@ -29,7 +29,7 @@ struct UpNextCard: View {
                             .foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer(minLength: 8)
-                    ChangeSessionMenu(session: session)
+                    ChangeSessionButton(session: session)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -190,7 +190,7 @@ struct DayDoneCard: View {
                 }
                 .accessibilityElement(children: .combine)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if logged.isEmpty { RestDayMenu(date: date) }
+                if logged.isEmpty { RestDayButton(date: date) }
             }
         }
     }
