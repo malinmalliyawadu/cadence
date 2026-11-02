@@ -90,8 +90,9 @@ final class RestTimerService {
         if self.state == state { activityID = id }
     }
 
-    /// A tap on the wrist when rest runs out with the app open. In the background the
-    /// notification does this.
+    /// A tap and a chime when rest runs out with the app open. In the background the
+    /// notification does this. While the watch records the session it alerts, so the phone
+    /// only taps. A sleep that wakes late, the app having been in the background, stays quiet.
     private func scheduleFeedback() {
         feedback?.cancel()
         guard let state else { return }
@@ -99,8 +100,9 @@ final class RestTimerService {
         guard remaining > 0 else { return }
         feedback = Task { [weak self] in
             try? await Task.sleep(for: .seconds(remaining))
-            guard !Task.isCancelled, self?.state?.timer == state.timer else { return }
+            guard !Task.isCancelled, self?.state?.timer == state.timer, state.timer.overtime() < 2 else { return }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
+            if !RestAlarm.isWatchAlerting { SoundEffects.play(.restOver) }
         }
     }
 
@@ -140,13 +142,14 @@ extension RestActivity {
     }
 }
 
-/// Shows the rest-over notification while the app is open: as a sound alone on the session
-/// screen, which already says rest is over, and as a banner anywhere else in the app.
+/// Shows the rest-over notification while the app is open: not at all on the session screen,
+/// which already says rest is over, and as a banner anywhere else in the app. The app chimes
+/// itself (`SoundEffects`), so the notification stays silent and Sounds off in Settings holds.
 private final class RestAlarmPresenter: NSObject, UNUserNotificationCenterDelegate, Sendable {
     @MainActor static var isOnScreen = false
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         guard notification.request.identifier == RestAlarm.identifier else { return [.banner, .sound] }
-        return await Self.isOnScreen ? [.sound] : [.banner, .sound]
+        return await Self.isOnScreen ? [] : [.banner]
     }
 }

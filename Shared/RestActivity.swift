@@ -64,7 +64,8 @@ enum RestAlarm {
         let content = UNMutableNotificationContent()
         content.title = "Rest over"
         content.body = "\(state.movement), \(state.setLabel.lowercased()) at \(state.target)."
-        content.sound = .default
+        // The chime the app plays itself when rest runs out with it open (SoundEffects).
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("rest-over.caf"))
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: remaining, repeats: false)
         try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }

@@ -17,6 +17,7 @@ struct CadenceApp: App {
         // Created at launch so a workout the watch starts mirrors here even when the app was not running.
         _live = State(initialValue: LiveWorkoutService(health: health, rest: rest))
         Self.setChromeFonts()
+        SoundEffects.prepare()
         let schema = Schema([AthleteProfile.self, TrainingSession.self, PlannedExercise.self, SetRecord.self, ForecastDay.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {

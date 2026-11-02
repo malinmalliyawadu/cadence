@@ -49,6 +49,10 @@ and the weather, generates every strength session, and progresses load from reps
   - `Services/RestTimerService.swift` - logging a set starts the rest before the next one: a card on the session screen,
     a Live Activity (Lock Screen and Dynamic Island) and a "Rest over" notification, asked for on the first rest.
     Reads the activity back when the app comes to the front, since its +30 s and Skip buttons work in the background.
+  - `Services/SoundEffects.swift` - a soft tick when a set is logged and a chime when rest is over, played ambient (under
+    the athlete's music, silent with the ring switch) and off with Settings, Sounds. The rest-over notification rings the
+    same chime in the background. `Resources/Sounds` is synthesised by `scripts/generate_sounds.py`: edit the script and
+    rerun it, never the files.
   - `Services/LiveWorkoutService.swift` - the watch's live workout, mirrored to the phone. Logging the first set launches
     the watch app with a strength workout; one started on the watch links to today's session. It shows live bpm and
     kcal on the session screen, sends the watch the next set and the rest (the watch taps the wrist, so the phone's
