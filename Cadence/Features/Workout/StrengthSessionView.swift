@@ -558,7 +558,16 @@ struct ExerciseCard: View {
         .id(Self.loggerID(exercise.order))
     }
 
+    /// Add set, Remove and Swap on one line; where Sora's wider words leave no room for all
+    /// three, Swap keeps its glyph alone rather than every label being cut short.
     private var setControls: some View {
+        ViewThatFits(in: .horizontal) {
+            setControlsRow(swapLabelled: true)
+            setControlsRow(swapLabelled: false)
+        }
+    }
+
+    private func setControlsRow(swapLabelled: Bool) -> some View {
         let canRemove = exercise.targetSets > 1 && exercise.record(at: exercise.targetSets - 1)?.completedAt == nil
         return HStack(spacing: 8) {
             Button { withAnimation(Motion.reveal) { coordinator.addSet(to: exercise, in: context) } } label: {
@@ -580,7 +589,11 @@ struct ExerciseCard: View {
             Spacer(minLength: 0)
             if exercise.completedSets.isEmpty {
                 Button { showSwap = true } label: {
-                    Chip(symbol: "arrow.left.arrow.right", text: "Swap", tint: Palette.inkSecondary, glass: true)
+                    if swapLabelled {
+                        Chip(symbol: "arrow.left.arrow.right", text: "Swap", tint: Palette.inkSecondary, glass: true)
+                    } else {
+                        GlassIcon(symbol: "arrow.left.arrow.right", size: 40)
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Swap movement")
@@ -606,6 +619,7 @@ struct ExerciseCard: View {
             coordinator.logSet(exercise, at: index, weightKg: weight, reps: reps, rir: asksRIR ? rir : nil, in: context)
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        SoundEffects.play(.setLogged)
         onLogged()
     }
 

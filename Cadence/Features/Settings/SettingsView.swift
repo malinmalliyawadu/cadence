@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var replaceOnImport = false
     @State private var importing = false
     @State private var importMessage: String?
+    @AppStorage(SoundEffects.enabledKey) private var soundsEnabled = true
 
     private let dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
@@ -231,6 +232,14 @@ struct SettingsView: View {
                     Text("Apple Health").formHeader()
                 } footer: {
                     Text("Runs, hot yoga and strength workouts logged in Fitness complete the matching planned session, with duration, distance and your Workout Effort Score as the effort rating. Finished strength sessions are saved to Apple Health with the effort you rate; if your watch recorded the session, the rating goes on its workout instead. With Cadence on your Apple Watch, logging your first set starts a workout there, so heart rate and calories are measured as you lift. HRV, resting heart rate and sleep set the day's recovery. Syncs whenever Cadence opens.").formFooter()
+                }
+
+                Section {
+                    Toggle("Set and rest sounds", isOn: $soundsEnabled)
+                } header: {
+                    Text("Sounds").formHeader()
+                } footer: {
+                    Text("A soft tick when you log a set and a chime when rest is over, under whatever you are listening to. Quiet with the ring switch on silent.").formFooter()
                 }
 
                 Section {
