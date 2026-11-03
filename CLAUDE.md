@@ -57,7 +57,10 @@ and the weather, generates every strength session, and progresses load from reps
     the watch app with a strength workout; one started on the watch links to today's session. It shows live bpm and
     kcal on the session screen, sends the watch the next set and the rest (the watch taps the wrist, so the phone's
     "Rest over" alert stays quiet meanwhile), and tells it to save on Finish or discard on Skip. No watch, no change.
-  - `Services/WeatherService.swift` - Open-Meteo, no key. Swap via `ForecastProviding`.
+  - `Services/WeatherService.swift` - Apple Weather (WeatherKit) behind `ForecastProviding`. Debug builds fall back to
+    Open-Meteo, since an ad hoc signed simulator build cannot authenticate with WeatherKit; release builds never use
+    it (its free API is non-commercial). `Design/WeatherAttribution.swift` is the Apple Weather mark and legal link,
+    required wherever forecast data shows (Home, Settings, Credits).
   - `Design/` - palette, type, surfaces (cards, chips, buttons) and the ring and hatched-bar chart pieces.
   - `Design/Typography.swift` - Sora (`Resources/Fonts/Sora.ttf`, a variable font under the OFL, credited in Settings,
     Credits), bundled in the app, the watch app and the widget extension and listed in each target's `UIAppFonts`.
@@ -105,6 +108,8 @@ EXC_GUARD "user fault" from BoardServices and draws a blank frame for a moment; 
 TestFlight: `scripts/testflight.sh` generates the project, archives (team WDB2HN7DW7, build number from the time) and
 uploads via `ExportOptions.plist` (method app-store-connect, destination upload); `--no-upload` exports an .ipa to
 `build/export` instead. Needs the App Store Connect app record for `nz.malin.cadence.fitness`.
+Store listing copy is `AppStore/listing.md`. The privacy, support and marketing pages are `site/`, published from the
+public repo malinmalliyawadu/cadence-site with GitHub Pages: copy changes there and push.
 Seed the simulator from a real export: `xcrun simctl launch <udid> nz.malin.cadence.fitness -importCSV /path/export.csv`.
 Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv swift test --filter RealExport`.
 

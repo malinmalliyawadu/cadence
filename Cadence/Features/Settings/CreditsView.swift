@@ -30,14 +30,13 @@ struct CreditsView: View {
                         ],
                         licence: Self.oflLicence
                     )
-                    credit(
-                        title: "Weather",
-                        body: "Weather data by Open-Meteo.",
-                        links: [
-                            ("Open-Meteo", "https://open-meteo.com"),
-                            ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
-                        ]
-                    )
+                    Card {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Weather").font(.rowTitle).foregroundStyle(Palette.ink)
+                            Text("Forecasts from Apple Weather.").font(.body2).foregroundStyle(Palette.inkSecondary)
+                            WeatherAttributionView()
+                        }
+                    }
                 }
                 .padding(.horizontal, Metrics.gutter)
                 .padding(.vertical, 12)

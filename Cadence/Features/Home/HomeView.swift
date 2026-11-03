@@ -110,6 +110,7 @@ struct HomeView: View {
                 }
                 trends
                 howLoadIsRead
+                if !forecasts.isEmpty { WeatherAttributionView() }
             }
             .padding(.horizontal, Metrics.gutter)
             .padding(.bottom, 40)

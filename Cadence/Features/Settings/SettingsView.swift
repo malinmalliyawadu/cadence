@@ -132,7 +132,10 @@ struct SettingsView: View {
                 } header: {
                     Text("Forecast").formHeader()
                 } footer: {
-                    Text("Forecasts come from Open-Meteo for the ten days ahead. Runs chase mild, dry, still days.").formFooter()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Forecasts come from Apple Weather for the ten days ahead. Runs chase mild, dry, still days.").formFooter()
+                        WeatherAttributionView()
+                    }
                 }
 
                 Section {

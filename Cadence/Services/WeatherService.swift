@@ -1,12 +1,86 @@
+import CoreLocation
 import Foundation
 import TrainingEngine
+import WeatherKit
 
-/// Daily forecasts from Open-Meteo. No API key, no account, works in the simulator.
-/// Swap for WeatherKit by conforming another type to `ForecastProviding`.
 protocol ForecastProviding: Sendable {
     func forecast(latitude: Double, longitude: Double, days: Int) async throws -> [DayForecast]
 }
 
+enum Forecasts {
+    /// Apple Weather in release builds. Debug builds fall back to Open-Meteo, because an ad hoc
+    /// signed simulator build cannot authenticate with WeatherKit.
+    static var standard: any ForecastProviding {
+        #if DEBUG
+        FallbackForecast(primary: AppleWeatherService(), fallback: OpenMeteoService())
+        #else
+        AppleWeatherService()
+        #endif
+    }
+}
+
+/// Daily forecasts from Apple Weather, ten days at most. Needs the WeatherKit capability and App
+/// Service on the App ID. The attribution Apple asks for is `WeatherAttributionView`.
+struct AppleWeatherService: ForecastProviding {
+    func forecast(latitude: Double, longitude: Double, days: Int = 10) async throws -> [DayForecast] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: .now)
+        let end = calendar.date(byAdding: .day, value: min(10, max(1, days)), to: start)!
+        let daily = try await WeatherKit.WeatherService.shared.weather(
+            for: CLLocation(latitude: latitude, longitude: longitude),
+            including: .daily(startDate: start, endDate: end)
+        )
+        return daily.map { day in
+            DayForecast(
+                date: calendar.startOfDay(for: day.date),
+                tempMaxC: day.highTemperature.converted(to: .celsius).value,
+                tempMinC: day.lowTemperature.converted(to: .celsius).value,
+                precipitationProbability: day.precipitationChance,
+                precipitationMm: day.precipitationAmountByType.precipitation.converted(to: .millimeters).value,
+                windKph: (day.highWindSpeed ?? day.wind.speed).converted(to: .kilometersPerHour).value,
+                uvIndex: Double(day.uvIndex.value),
+                weatherCode: Self.wmoCode(for: day.condition)
+            )
+        }
+    }
+
+    /// The engine reads conditions as WMO codes, the scheme Open-Meteo uses.
+    static func wmoCode(for condition: WeatherKit.WeatherCondition) -> Int {
+        switch condition {
+        case .clear, .hot, .frigid: 0
+        case .mostlyClear: 1
+        case .partlyCloudy, .breezy, .windy, .blowingDust: 2
+        case .mostlyCloudy, .cloudy: 3
+        case .foggy, .haze, .smoky: 45
+        case .drizzle: 53
+        case .freezingDrizzle: 56
+        case .rain, .sunShowers: 63
+        case .heavyRain: 65
+        case .freezingRain, .sleet, .wintryMix, .hail: 67
+        case .snow, .flurries, .sunFlurries, .blowingSnow: 73
+        case .heavySnow, .blizzard: 75
+        case .thunderstorms, .isolatedThunderstorms, .scatteredThunderstorms, .strongStorms, .tropicalStorm, .hurricane: 95
+        @unknown default: 2
+        }
+    }
+}
+
+#if DEBUG
+struct FallbackForecast: ForecastProviding {
+    let primary: any ForecastProviding
+    let fallback: any ForecastProviding
+
+    func forecast(latitude: Double, longitude: Double, days: Int) async throws -> [DayForecast] {
+        do {
+            return try await primary.forecast(latitude: latitude, longitude: longitude, days: days)
+        } catch {
+            print("Apple Weather failed, using Open-Meteo: \(error.localizedDescription)")
+            return try await fallback.forecast(latitude: latitude, longitude: longitude, days: days)
+        }
+    }
+}
+
+/// Daily forecasts from Open-Meteo, for development only: the free API is non-commercial.
 struct OpenMeteoService: ForecastProviding {
     var session: URLSession = .shared
 
@@ -71,3 +145,4 @@ struct OpenMeteoService: ForecastProviding {
         }
     }
 }
+#endif
