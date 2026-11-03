@@ -77,6 +77,7 @@ location" is tapped in Settings.
 
 ## Screenshots
 
-6.9-inch display (1320 x 2868), up to ten. Take them on an iPhone 17 Pro Max simulator seeded with
-an import, in this order: Home with today's lift, a strength session mid-log, the week, a run with
-its ring, Settings.
+`AppStore/screenshots/`, 6.9-inch (1320 x 2868, JPEG with no alpha, which App Store Connect requires), in
+upload order: Home with today's lift, a chest session mid-log with the rest timer, the week, the Change sheet, and
+Bulgarian Split Squat's trend. Taken on the iPhone 18 Pro Max simulator, status bar overridden to 9:41, seeded
+with a synthetic eight-week export (four lifts, an easy run and a long run a week, one deload week).
