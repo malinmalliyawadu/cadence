@@ -21,14 +21,13 @@ struct CreditsView: View {
                         links: [("react-native-body-highlighter", "https://github.com/HichamELBSI/react-native-body-highlighter")],
                         licence: Self.mitLicence
                     )
-                    credit(
-                        title: "Weather",
-                        body: "Weather data by Open-Meteo.",
-                        links: [
-                            ("Open-Meteo", "https://open-meteo.com"),
-                            ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
-                        ]
-                    )
+                    Card {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Weather").font(.rowTitle).foregroundStyle(Palette.ink)
+                            Text("Forecasts from Apple Weather.").font(.body2).foregroundStyle(Palette.inkSecondary)
+                            WeatherAttributionView()
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)

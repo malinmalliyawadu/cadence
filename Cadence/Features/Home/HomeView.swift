@@ -87,6 +87,7 @@ struct HomeView: View {
                 }
                 trends
                 explainer
+                if !forecasts.isEmpty { WeatherAttributionView() }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 40)

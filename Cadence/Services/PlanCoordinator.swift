@@ -21,7 +21,7 @@ final class PlanCoordinator {
     let forecastProvider: any ForecastProviding
     var calendar: Calendar
 
-    init(forecastProvider: any ForecastProviding = OpenMeteoService(), calendar: Calendar = .current) {
+    init(forecastProvider: any ForecastProviding = Forecasts.standard, calendar: Calendar = .current) {
         var calendar = calendar
         calendar.firstWeekday = 2 // Monday
         self.forecastProvider = forecastProvider
