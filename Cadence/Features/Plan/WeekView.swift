@@ -9,6 +9,7 @@ struct WeekView: View {
     @Query(sort: \ForecastDay.date) private var forecasts: [ForecastDay]
     @State private var weekOffset = 0
     @State private var confirmReplan = false
+    @Namespace private var zoom
 
     private var calendar: Calendar { coordinator.calendar }
     private var weekStart: Date {
@@ -37,7 +38,7 @@ struct WeekView: View {
                             replanButton
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Metrics.gutter)
                     .padding(.bottom, 40)
                 }
             }
@@ -45,16 +46,12 @@ struct WeekView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    MenuChip(title: "Week", selection: $weekOffset, options: [(0, "This week"), (1, "Next week")])
+                    // The toolbar draws the glass, as it does for every other header button.
+                    MenuChip(title: "Week", selection: $weekOffset, options: [(0, "This week"), (1, "Next week")], glass: false)
+                        .tint(Palette.ink)
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
-            .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
-            .confirmationDialog("Re-plan this week?", isPresented: $confirmReplan, titleVisibility: .visible) {
-                Button("Re-plan remaining days") { Task { await coordinator.planWeek(containing: weekStart, in: context) } }
-            } message: {
-                Text("Sessions you have already completed stay. Everything else is rebuilt from today's load and forecast.")
-            }
+            .zoomsSessions(in: zoom)
         }
     }
 
@@ -86,7 +83,7 @@ struct WeekView: View {
     private var emptyWeek: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(weekOffset == 0 ? "Nothing planned yet." : "Next week is planned on Monday, or now if you want a head start.")
-                .font(.system(size: 17)).foregroundStyle(Palette.inkSecondary)
+                .font(.cadence(size: 17)).foregroundStyle(Palette.inkSecondary)
             Button {
                 Task { await coordinator.planWeek(containing: weekStart, in: context) }
             } label: {
@@ -104,6 +101,12 @@ struct WeekView: View {
         }
         .buttonStyle(.secondary)
         .disabled(coordinator.phase == .planning || weekOffset == 1 && weekSessions.isEmpty)
+        // On the button, so the popover points at it.
+        .confirmationDialog("Re-plan this week?", isPresented: $confirmReplan, titleVisibility: .visible) {
+            Button("Re-plan remaining days") { Task { await coordinator.planWeek(containing: weekStart, in: context) } }
+        } message: {
+            Text("Sessions you have already completed stay. Everything else is rebuilt from today's load and forecast.")
+        }
     }
 }
 
@@ -128,7 +131,7 @@ struct DayCard: View {
             VStack(spacing: 2) {
                 Text(Format.shortWeekday.string(from: date))
                     .font(.label)
-                    .foregroundStyle(isToday ? Palette.accent : Palette.inkSecondary)
+                    .foregroundStyle(isToday ? Palette.today : Palette.inkSecondary)
                 Text(Format.dayNumber.string(from: date))
                     .font(.numeral)
                     .foregroundStyle(Palette.ink)
@@ -137,9 +140,13 @@ struct DayCard: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 if sessions.isEmpty {
-                    Text("Rest")
-                        .font(.rowTitle)
-                        .foregroundStyle(Palette.inkTertiary)
+                    HStack(spacing: 12) {
+                        Text("Rest")
+                            .font(.rowTitle)
+                            .foregroundStyle(Palette.inkTertiary)
+                        Spacer(minLength: 0)
+                        RestDayButton(date: date)
+                    }
                 } else {
                     ForEach(sessions) { session in
                         NavigationLink(value: session) {
@@ -154,7 +161,8 @@ struct DayCard: View {
                             }
                             .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
+                        .sessionZoomSource(session, cornerRadius: 12)
                         .opacity(session.status == .skipped ? 0.5 : 1)
                     }
                 }
@@ -171,7 +179,7 @@ struct DayCard: View {
                         .foregroundStyle(Palette.ink)
                     if forecast.precipitationProbability >= 0.3 {
                         Text(Format.percent(forecast.precipitationProbability))
-                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .font(.cadence(size: 11, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Palette.sky)
                     }
                 }
@@ -181,7 +189,7 @@ struct DayCard: View {
             }
         }
         .padding(16)
-        .surface(cornerRadius: 22, isActive: isToday)
+        .surface(cornerRadius: 22)
     }
 }
 
@@ -197,7 +205,7 @@ struct StatCard: View {
         Card(padding: 14) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: symbol, tint: tint)
+                    TitleIcon(symbol: symbol, tint: tint)
                     Text(title).font(.rowTitle).foregroundStyle(Palette.ink)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {

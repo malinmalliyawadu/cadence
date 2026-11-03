@@ -5,10 +5,12 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
+    @Environment(RestTimerService.self) private var rest
+    @Environment(LiveWorkoutService.self) private var live
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = .home
 
-    enum Tab: Hashable { case home, week, library }
+    enum Tab: Hashable { case home, week, history }
 
     var body: some View {
         TabView(selection: $selection) {
@@ -18,19 +20,23 @@ struct RootView: View {
             SwiftUI.Tab("Week", systemImage: "calendar", value: .week) {
                 WeekView()
             }
-            SwiftUI.Tab("Library", systemImage: "books.vertical.fill", value: .library) {
-                LibraryView()
+            SwiftUI.Tab("History", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90", value: .history) {
+                HistoryView()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
+            rest.sync()
+            live.attach(context: context, coordinator: coordinator)
             _ = coordinator.profile(in: context)
             await importFromLaunchArguments()
             await coordinator.refreshForecast(in: context)
             await health.sync(in: context, coordinator: coordinator)
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, health.isEnabled else { return }
+            guard phase == .active else { return }
+            rest.sync()
+            guard health.isEnabled else { return }
             Task { await health.sync(in: context, coordinator: coordinator) }
         }
     }

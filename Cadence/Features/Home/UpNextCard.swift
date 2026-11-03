@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 import TrainingEngine
 
-/// The top of Home: the session to do next, what it involves, and the one blue button that opens
+/// The top of Home: the session to do next, what it involves, and the one violet button that opens
 /// it. A session already started says how far it got and resumes. A session on a later day is
 /// shown with a quieter button, since there is nothing to start today.
 struct UpNextCard: View {
@@ -13,22 +13,23 @@ struct UpNextCard: View {
     @Environment(PlanCoordinator.self) private var coordinator
 
     private var isStarted: Bool { session.modality == .strength && session.loggedSetCount > 0 }
+    private static let padding: CGFloat = 18
 
     var body: some View {
-        Card(isActive: isToday, cornerRadius: 26, padding: 18) {
+        Card(cornerRadius: 26, padding: Self.padding) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(alignment: .center, spacing: 12) {
                     SessionTile(symbol: session.modality.symbolName, tint: session.modality.tint, size: 44)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(eyebrow)
                             .font(.label)
-                            .foregroundStyle(isToday ? Palette.accent : Palette.inkSecondary)
+                            .foregroundStyle(isToday ? Palette.today : Palette.inkSecondary)
                         Text(Format.minutes(session.plannedMinutes))
                             .font(.label.monospacedDigit())
                             .foregroundStyle(Palette.inkTertiary)
                     }
                     Spacer(minLength: 8)
-                    ChangeSessionMenu(session: session)
+                    ChangeSessionButton(session: session)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -59,6 +60,8 @@ struct UpNextCard: View {
                 }
             }
         }
+        // The session opens out of the whole card, not just its button.
+        .sessionZoomSource(session, cornerRadius: 26)
     }
 
     /// "Up next", "Tomorrow", "Thursday".
@@ -102,9 +105,18 @@ struct UpNextCard: View {
     }
 
     /// The movements as a strip of thumbnails, the focus ones first in the order they are done.
+    /// As many as fit the card's width, so the strip never pushes the page wider than the screen.
     private var movements: some View {
         let exercises = session.orderedExercises.compactMap(\.exercise)
-        let shown = exercises.prefix(5)
+        return ViewThatFits(in: .horizontal) {
+            ForEach([5, 4, 3], id: \.self) { count in movementStrip(exercises, showing: count) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(exercises.map(\.name).formatted(.list(type: .and)))
+    }
+
+    private func movementStrip(_ exercises: [Exercise], showing count: Int) -> some View {
+        let shown = exercises.prefix(count)
         return HStack(spacing: 8) {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, exercise in
                 MovementThumbnail(exercise: exercise, size: 52)
@@ -117,8 +129,6 @@ struct UpNextCard: View {
                     .background(Palette.raised, in: .rect(cornerRadius: 52 * 0.22, style: .continuous))
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(exercises.map(\.name).formatted(.list(type: .and)))
     }
 
     private func runTarget(_ target: RunTarget) -> some View {
@@ -133,18 +143,20 @@ struct UpNextCard: View {
                     Text("Run by feel").font(.rowTitle).foregroundStyle(Palette.ink)
                 }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Chip(symbol: "heart", text: target.heartRate.map { "Zone \(target.zone), \(Format.heartRate($0))" } ?? "Zone \(target.zone)", tint: Palette.rose)
-                    if let forecast { weatherChips(forecast) }
-                }
+            chipRow {
+                Chip(symbol: "heart", text: target.heartRate.map { "Zone \(target.zone), \(Format.heartRate($0))" } ?? "Zone \(target.zone)", tint: Palette.rose)
+                if let forecast { weatherChips(forecast) }
             }
-            .scrollClipDisabled()
         }
     }
 
     private func weather(_ forecast: DayForecast) -> some View {
-        HStack(spacing: 8) { weatherChips(forecast) }
+        chipRow { weatherChips(forecast) }
+    }
+
+    /// Chips that wrap rather than squeeze or scroll, so a wet, windy day takes a second line.
+    private func chipRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ChipFlow { content() }
     }
 
     @ViewBuilder
@@ -159,8 +171,10 @@ struct UpNextCard: View {
     }
 }
 
-/// A day with nothing left to do: rest, or everything already logged.
+/// A day with nothing left to do: rest, or everything already logged. A rest day can still be
+/// changed to a session.
 struct DayDoneCard: View {
+    let date: Date
     let logged: [TrainingSession]
 
     var body: some View {
@@ -174,9 +188,11 @@ struct DayDoneCard: View {
                         .foregroundStyle(Palette.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if logged.isEmpty { RestDayButton(date: date) }
             }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var message: String {

@@ -6,14 +6,22 @@ import TrainingEngine
 struct LoadTrendCard: View {
     let series: [DailyLoad]
     let window: Int
+    var onExplain: () -> Void = {}
 
     var body: some View {
         let zoneTop = series.map { max($0.acute, $0.chronic) }.max() ?? 1
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                IconDisc(symbol: "waveform.path.ecg")
-                Text("Acute against chronic").font(.rowTitle).foregroundStyle(Palette.ink)
+            Button(action: onExplain) {
+                HStack(spacing: 10) {
+                    TitleIcon(symbol: "waveform.path.ecg")
+                    Text("Acute against chronic").font(.rowTitle).foregroundStyle(Palette.ink)
+                    InfoGlyph()
+                    Spacer(minLength: 0)
+                }
             }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Acute against chronic")
+            .accessibilityHint("Explains training load")
             Chart {
                 ForEach(series) { day in
                     AreaMark(x: .value("Day", day.date), yStart: .value("Floor", 0), yEnd: .value("Acute", day.acute))
@@ -39,11 +47,14 @@ struct LoadTrendCard: View {
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
-                    AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                    AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
                 }
             }
             .chartLegend(.hidden)
             .frame(height: 200)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Chart of acute training load against chronic training load over the last \(window) days.")
+            .accessibilityValue("Acute \(Format.load(series.last?.acute ?? 0)), chronic \(Format.load(series.last?.chronic ?? 0)).")
             HStack(spacing: 16) {
                 LegendKey(color: Palette.accent, text: "Acute, 7 day")
                 LegendKey(color: Palette.ink.opacity(0.7), text: "Chronic, 28 day", dashed: true)
@@ -51,9 +62,7 @@ struct LoadTrendCard: View {
         }
         .padding(16)
         .surface()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Chart of acute training load against chronic training load over the last \(window) days.")
-        .accessibilityValue("Acute \(Format.load(series.last?.acute ?? 0)), chronic \(Format.load(series.last?.chronic ?? 0)).")
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -65,7 +74,7 @@ struct LoadMixCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                IconDisc(symbol: "chart.bar")
+                TitleIcon(symbol: "chart.bar")
                 Text("Where the load comes from").font(.rowTitle).foregroundStyle(Palette.ink)
             }
             Chart(entries, id: \.date) { entry in
@@ -76,13 +85,15 @@ struct LoadMixCard: View {
             .chartForegroundStyleScale([
                 Modality.strength.displayName: Palette.strength,
                 Modality.running.displayName: Palette.sky,
-                Modality.yoga.displayName: Palette.violet,
+                Modality.yoga.displayName: Palette.orchid,
             ])
             .chartXAxis { dayAxis(window: window) }
+            // The bars run to the card's edge; room at the end keeps the last date whole.
+            .chartXScale(range: .plotDimension(endPadding: 36))
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine().foregroundStyle(Palette.hairline)
-                    AxisValueLabel().foregroundStyle(Palette.inkTertiary)
+                    AxisValueLabel().font(.axis).foregroundStyle(Palette.inkTertiary)
                 }
             }
             .chartLegend(.hidden)
@@ -107,11 +118,11 @@ struct LoadMixCard: View {
     }
 }
 
-/// Date ticks every week, or every fortnight on the long window.
+/// Date ticks every week, or every fortnight on the long window, each label centred on its tick.
 private func dayAxis(window: Int) -> some AxisContent {
     AxisMarks(values: .stride(by: .day, count: window >= 84 ? 14 : 7)) { _ in
         AxisGridLine().foregroundStyle(Palette.hairline)
-        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(Palette.inkTertiary)
+        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).font(.axis).foregroundStyle(Palette.inkTertiary)
     }
 }
 
@@ -139,13 +150,18 @@ struct StatTile: View {
     let value: String
     let unit: String
     var tint: Color = Palette.inkTertiary
+    /// Tapping it opens an explainer.
+    var explains = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.label).foregroundStyle(Palette.inkSecondary)
+            HStack(spacing: 4) {
+                Text(title).font(.label).foregroundStyle(Palette.inkSecondary).lineLimit(1)
+                if explains { InfoGlyph() }
+            }
             Text(value).font(.numeral).foregroundStyle(Palette.ink).lineLimit(1).minimumScaleFactor(0.7)
                 .contentTransition(.numericText())
-            Text(unit).font(.system(size: 12, weight: .medium)).foregroundStyle(tint).lineLimit(1).frame(height: 14)
+            Text(unit).font(.cadence(size: 12, weight: .medium)).foregroundStyle(tint).lineLimit(1).frame(height: 14)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)

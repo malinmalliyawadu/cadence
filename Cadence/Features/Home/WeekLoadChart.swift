@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Monday to Sunday as hatched bars: solid for load already logged, dashed for what is still
-/// planned. Today is the bright one, with its number pinned above it.
+/// planned. Today is the mint one, with its number pinned above it.
 struct WeekLoadChart: View {
     struct Day: Identifiable {
         let date: Date
@@ -24,9 +24,10 @@ struct WeekLoadChart: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 18) {
+            // The top axis label rides above its grid line, so the plot sits a little further down.
+            VStack(alignment: .leading, spacing: 24) {
                 HStack(spacing: 10) {
-                    IconDisc(symbol: "flame")
+                    TitleIcon(symbol: "flame")
                     Text("Load this week").font(.rowTitle).foregroundStyle(Palette.ink)
                     Spacer(minLength: 8)
                     Text("\(Format.load(logged)) of \(Format.load(total))")
@@ -48,7 +49,7 @@ struct WeekLoadChart: View {
                     let value = scaleMax * Double(step) / 4
                     HStack(spacing: 8) {
                         Text(Format.load(value))
-                            .font(.system(size: 11, weight: .medium).monospacedDigit())
+                            .font(.cadence(size: 11, weight: .medium).monospacedDigit())
                             .foregroundStyle(Palette.inkTertiary)
                             .frame(width: axisWidth, alignment: .trailing)
                         Rectangle().fill(Palette.hairline).frame(height: 1)
@@ -60,14 +61,16 @@ struct WeekLoadChart: View {
                     ForEach(days) { day in column(day) }
                 }
                 .padding(.leading, axisWidth + 12)
+                // A session logged or re-planned grows or shrinks its day's bar.
+                .animation(Motion.settle, value: days.map(\.total))
             }
             .frame(height: plotHeight, alignment: .bottom)
 
             HStack(spacing: 10) {
                 ForEach(days) { day in
                     Text(Format.shortWeekday.string(from: day.date))
-                        .font(.system(size: 12, weight: calendar.isDate(day.date, inSameDayAs: today) ? .semibold : .medium))
-                        .foregroundStyle(calendar.isDate(day.date, inSameDayAs: today) ? Palette.ink : Palette.inkTertiary)
+                        .font(.cadence(size: 12, weight: calendar.isDate(day.date, inSameDayAs: today) ? .semibold : .medium))
+                        .foregroundStyle(calendar.isDate(day.date, inSameDayAs: today) ? Palette.today : Palette.inkTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -84,12 +87,12 @@ struct WeekLoadChart: View {
                 ValueCallout(text: Format.load(day.total)).padding(.bottom, 6)
             }
             if day.planned > 0 {
-                HatchedBar(isHighlighted: isToday, isPlanned: true)
+                HatchedBar(isToday: isToday, isPlanned: true)
                     .frame(height: max(CGFloat(day.planned) * scale, 16))
             }
             if day.planned > 0, day.logged > 0 { Spacer().frame(height: 3) }
             if day.logged > 0 {
-                HatchedBar(isHighlighted: isToday)
+                HatchedBar(isToday: isToday)
                     .frame(height: max(CGFloat(day.logged) * scale, 16))
             }
         }
@@ -103,11 +106,12 @@ struct WeekLoadChart: View {
         }.joined(separator: ", ")
     }
 
-    /// Rounds up to 1, 2, 2.5 or 5 times a power of ten so the axis reads in round numbers.
+    /// Rounds up to the next value whose quarters are round numbers (1,200 reads 300, 600, 900),
+    /// in steps fine enough that the tallest bar fills most of the plot.
     static func niceCeiling(_ value: Double) -> Double {
         guard value > 0 else { return 100 }
         let magnitude = pow(10, floor(log10(value)))
-        let step = [1, 2, 2.5, 5, 10].first { $0 * magnitude >= value } ?? 10
+        let step = [1, 1.2, 1.6, 2, 2.4, 3.2, 4, 6, 8, 10].first { $0 * magnitude >= value } ?? 10
         return step * magnitude
     }
 }

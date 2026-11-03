@@ -17,6 +17,8 @@ final class PlanCoordinator {
     private(set) var phase: Phase = .idle
     private(set) var lastPlan: WeekPlan?
     private(set) var forecastError: String?
+    /// Today's recovery from the watch. Nil until Apple Health has been read this launch.
+    private(set) var recovery: RecoveryStatus?
 
     let forecastProvider: any ForecastProviding
     var calendar: Calendar
@@ -81,6 +83,52 @@ final class PlanCoordinator {
         return ((try? context.fetch(descriptor)) ?? []).map(\.forecast)
     }
 
+    // MARK: Recovery
+
+    /// Readiness for a session on `date`: load up to the day before, and recovery if the session is today.
+    func readiness(on date: Date, entries: [LoadEntry]) -> Readiness {
+        let snapshot = LoadAnalysis.snapshot(entries: entries, planningOn: date, calendar: calendar)
+        let todays = recovery.flatMap { calendar.isDate($0.asOf, inSameDayAs: date) && calendar.isDateInToday(date) ? $0 : nil }
+        return Readiness.from(snapshot, recovery: todays)
+    }
+
+    func updateRecovery(_ status: RecoveryStatus, in context: ModelContext) {
+        recovery = status
+        applyRecovery(in: context)
+    }
+
+    /// Re-prescribes today's strength session when recovery calls for different loads than it is
+    /// prescribed at. Only before anything is logged, and only movements whose sets the athlete
+    /// has not planned by hand. Recovery is a today signal, so later sessions are left alone.
+    private func applyRecovery(in context: ModelContext) {
+        let today = calendar.startOfDay(for: .now)
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+        let strength = Modality.strength.rawValue
+        let planned = SessionStatus.planned.rawValue
+        let descriptor = FetchDescriptor<TrainingSession>(predicate: #Predicate {
+            $0.modalityRaw == strength && $0.statusRaw == planned && $0.date >= today && $0.date < tomorrow
+        })
+        let sessions = ((try? context.fetch(descriptor)) ?? []).filter { $0.loggedSetCount == 0 }
+        guard !sessions.isEmpty else { return }
+        let entries = loadEntries(in: context)
+        let history = history(in: context)
+        let bodyweight = profile(in: context).bodyweightKg
+        for session in sessions {
+            let readiness = readiness(on: session.date, entries: entries)
+            let factor = readiness.recovery?.loadMultiplier ?? 1
+            guard session.recoveryFactor != factor else { continue }
+            for exercise in session.exercises where exercise.sets.isEmpty {
+                guard let movement = exercise.exercise else { continue }
+                let result = Progression.nextLoad(for: movement, history: history, repRange: exercise.repRange, targetRIR: exercise.targetRIR,
+                                                  readiness: readiness.loadMultiplier, readinessReason: readiness.cutReason, bodyweightKg: bodyweight)
+                exercise.prescribedWeightKg = result.weightKg
+                exercise.rationale = result.rationale
+            }
+            session.recoveryFactor = factor
+        }
+        try? context.save()
+    }
+
     // MARK: Forecast
 
     func refreshForecast(in context: ModelContext) async {
@@ -117,14 +165,18 @@ final class PlanCoordinator {
 
         let profile = profile(in: context)
         let start = weekStart(containing: date)
-        let today = calendar.startOfDay(for: date)
+        // The Week tab passes the week's Monday; days already gone are never planned on.
+        let today = max(calendar.startOfDay(for: date), calendar.startOfDay(for: .now))
 
-        // 1. Clear this week's untouched sessions.
+        // 1. Clear this week's untouched sessions. A lift with sets logged is under way, so it stays.
         let weekSessions = sessions(weekStart: start, in: context)
-        for session in weekSessions where session.status == .planned && session.date >= today {
+        let untouched = { (session: TrainingSession) in session.status == .planned && session.date >= today && session.loggedSetCount == 0 }
+        for session in weekSessions where untouched(session) {
             context.delete(session)
         }
-        let kept = weekSessions.filter { !($0.status == .planned && $0.date >= today) }
+        // What fills the week: sessions done or under way, and those still to come. One planned on a
+        // day already gone and never started was missed, not trained, so it does not use up the week.
+        let kept = weekSessions.filter { !untouched($0) && ($0.status == .completed || $0.loggedSetCount > 0 || $0.date >= today) }
 
         // 2. Work out what is left to place this week.
         var prefs = profile.plannerPreferences(weekStart: start)
@@ -210,6 +262,7 @@ final class PlanCoordinator {
             }
         }
         do { try context.save() } catch { phase = .failed(error.localizedDescription) }
+        applyRecovery(in: context)
     }
 
     func sessions(weekStart: Date, in context: ModelContext) -> [TrainingSession] {
@@ -232,10 +285,10 @@ final class PlanCoordinator {
 
     // MARK: Logging
 
-    /// Marks a session done. Strength sessions derive their RPE from the logged RIR, or take the
-    /// given effort when nothing was logged (a workout recorded only on the watch), and advance
-    /// the focus rotation so the next plan picks up where this one left off. Minutes already
-    /// taken from an Apple Health workout are kept.
+    /// Marks a session done. Strength sessions take the effort rated on finishing (or from a
+    /// watch workout), else derive it from the logged RIR, and advance the focus rotation so the
+    /// next plan picks up where this one left off. Minutes already taken from an Apple Health
+    /// workout are kept.
     func complete(_ session: TrainingSession, at date: Date = .now, minutes: Double? = nil, rpe: Double? = nil, distanceKm: Double? = nil, in context: ModelContext) {
         session.status = .completed
         session.completedAt = date
@@ -243,14 +296,18 @@ final class PlanCoordinator {
         if let rpe { session.rpe = rpe }
         if let distanceKm { session.distanceKm = distanceKm }
         if session.modality == .strength {
-            let derived = TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
-            session.rpe = session.loggedSetCount > 0 ? derived : rpe ?? derived
+            session.rpe = rpe ?? suggestedEffort(for: session)
             let profile = profile(in: context)
             if let focus = session.focus {
                 if focus.half == .upper { profile.nextUpperFocus = focus.next } else { profile.nextLowerFocus = focus.next }
             }
         }
         try? context.save()
+    }
+
+    /// Where the effort question starts for a strength session: the RPE its reps in reserve imply.
+    func suggestedEffort(for session: TrainingSession) -> Double {
+        TrainingLoad.strengthSessionRPE(meanRIR: session.loggedMeanRIR ?? session.meanTargetRIR)
     }
 
     func skip(_ session: TrainingSession, in context: ModelContext) {
@@ -276,8 +333,7 @@ final class PlanCoordinator {
     func regenerate(_ session: TrainingSession, half: BodyHalf, focus: FocusArea, in context: ModelContext) {
         guard session.modality == .strength, session.status == .planned, session.loggedSetCount == 0, focus.half == half else { return }
         let profile = profile(in: context)
-        let snapshot = LoadAnalysis.snapshot(entries: loadEntries(in: context), planningOn: session.date, calendar: calendar)
-        let readiness = Readiness.from(snapshot)
+        let readiness = readiness(on: session.date, entries: loadEntries(in: context))
         let recent = Set(lastCompletedStrength(half: half, in: context)?.exercises.map(\.exerciseID) ?? [])
         let generated = WorkoutGenerator.generate(StrengthSessionRequest(
             half: half,
@@ -286,6 +342,7 @@ final class PlanCoordinator {
             recentExerciseIDs: recent,
             history: history(in: context),
             readiness: readiness.loadMultiplier,
+            readinessReason: readiness.cutReason,
             setReduction: readiness.setReduction,
             variationSeed: Int(session.date.timeIntervalSince1970 / 86_400),
             bodyweightKg: profile.bodyweightKg,
@@ -295,6 +352,7 @@ final class PlanCoordinator {
         session.exercises = generated.prescriptions.enumerated().map { PlannedExercise(prescription: $1, order: $0) }
         session.half = half
         session.focus = focus
+        session.recoveryFactor = readiness.recovery?.loadMultiplier ?? 1
         session.plannedMinutes = generated.estimatedMinutes.rounded()
         try? context.save()
     }
@@ -324,12 +382,13 @@ final class PlanCoordinator {
             session.exercises.removeAll { removed.contains($0.exerciseID) }
             for exercise in dropped { context.delete(exercise) }
 
-            let readiness = Readiness.from(LoadAnalysis.snapshot(entries: entries, planningOn: session.date, calendar: calendar))
+            let readiness = readiness(on: session.date, entries: entries)
             let request = StrengthSessionRequest(
                 half: half,
                 focus: focus,
                 history: history,
                 readiness: readiness.loadMultiplier,
+                readinessReason: readiness.cutReason,
                 setReduction: readiness.setReduction,
                 bodyweightKg: profile.bodyweightKg
             )
@@ -353,6 +412,60 @@ final class PlanCoordinator {
         a.date = b.date
         b.date = dateA
         try? context.save()
+    }
+
+    /// Moves a planned session to another day, keeping its time of day. Nothing logged yet, so its history stays put.
+    func move(_ session: TrainingSession, to day: Date, in context: ModelContext) {
+        guard session.status == .planned, session.loggedSetCount == 0 else { return }
+        let time = calendar.dateComponents([.hour, .minute], from: session.date)
+        let start = calendar.startOfDay(for: day)
+        session.date = calendar.date(byAdding: time, to: start) ?? start
+        session.weekStart = weekStart(containing: start)
+        try? context.save()
+        applyRecovery(in: context)
+    }
+
+    /// Puts a lift on a day the plan left free.
+    func addStrength(on day: Date, half: BodyHalf, focus: FocusArea, in context: ModelContext) {
+        let session = insertSession(on: day, modality: .strength, minutes: 0, in: context)
+        regenerate(session, half: half, focus: focus, in: context)
+    }
+
+    func addRun(on day: Date, kind: RunKind, in context: ModelContext) {
+        let session = insertSession(on: day, modality: .running, minutes: kind.defaultMinutes, in: context)
+        session.runKind = kind
+        try? context.save()
+    }
+
+    func addYoga(on day: Date, in context: ModelContext) {
+        _ = insertSession(on: day, modality: .yoga, minutes: profile(in: context).yogaMinutes, in: context)
+        try? context.save()
+    }
+
+    /// A planned session at 6 am, the hour the planner gives a day's first session.
+    private func insertSession(on day: Date, modality: Modality, minutes: Double, in context: ModelContext) -> TrainingSession {
+        let start = calendar.startOfDay(for: day)
+        let session = TrainingSession(date: calendar.date(byAdding: .hour, value: 6, to: start) ?? start, modality: modality,
+                                      plannedMinutes: minutes, weekStart: weekStart(containing: start))
+        context.insert(session)
+        return session
+    }
+
+    /// Planned sessions elsewhere in the week that could move to `day`. A missed one earlier in
+    /// the week counts, so it can be made up; one with sets logged is under way and stays.
+    func moveCandidates(to day: Date, in context: ModelContext) -> [TrainingSession] {
+        sessions(weekStart: weekStart(containing: day), in: context).filter {
+            $0.status == .planned && $0.loggedSetCount == 0 && !calendar.isDate($0.date, inSameDayAs: day)
+        }
+    }
+
+    /// Days from today on in the session's week with nothing planned or done, for moving it to.
+    func restDays(forMoving session: TrainingSession, in context: ModelContext) -> [Date] {
+        let week = sessions(weekStart: session.weekStart, in: context).filter { $0.status != .skipped }
+        let today = calendar.startOfDay(for: .now)
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: session.weekStart) }.filter { day in
+            day >= today && !calendar.isDate(day, inSameDayAs: session.date) && !week.contains { calendar.isDate($0.date, inSameDayAs: day) }
+        }
     }
 
     /// Changes a planned run's type. Minutes follow the type's default unless the athlete already shortened it.
@@ -383,23 +496,37 @@ final class PlanCoordinator {
         )
     }
 
-    /// What the replacement would be prescribed at in this slot, from its own history.
-    func prescription(for replacement: Exercise, in exercise: PlannedExercise, history: [ExerciseHistoryEntry], bodyweightKg: Double) -> ProgressionResult {
-        Progression.nextLoad(for: replacement, history: history, repRange: exercise.repRange, targetRIR: exercise.targetRIR, bodyweightKg: bodyweightKg)
+    /// What the replacement would be prescribed at in this slot, from its own history and the
+    /// session's readiness.
+    func prescription(for replacement: Exercise, in exercise: PlannedExercise, history: [ExerciseHistoryEntry], readiness: Readiness?, bodyweightKg: Double) -> ProgressionResult {
+        Progression.nextLoad(for: replacement, history: history, repRange: exercise.repRange, targetRIR: exercise.targetRIR,
+                             readiness: readiness?.loadMultiplier ?? 1, readinessReason: readiness?.cutReason, bodyweightKg: bodyweightKg)
+    }
+
+    /// Readiness for the session a movement belongs to.
+    func readiness(for exercise: PlannedExercise, in context: ModelContext) -> Readiness? {
+        exercise.session.map { readiness(on: $0.date, entries: loadEntries(in: context)) }
     }
 
     /// Puts `replacement` in this slot, keeping the scheme and prescribing its load from its own history.
     func swap(_ exercise: PlannedExercise, to replacement: Exercise, in context: ModelContext) {
-        let result = prescription(for: replacement, in: exercise, history: history(in: context), bodyweightKg: profile(in: context).bodyweightKg)
+        let result = prescription(for: replacement, in: exercise, history: history(in: context), readiness: readiness(for: exercise, in: context), bodyweightKg: profile(in: context).bodyweightKg)
         exercise.exerciseID = replacement.id
         exercise.prescribedWeightKg = result.weightKg
         exercise.rationale = result.rationale
+        exercise.warmUpsDone = 0
         for set in exercise.sets { context.delete(set) }
         exercise.sets = []
         try? context.save()
     }
 
     // MARK: Set plan
+
+    /// Ticks warm-ups off up to `count`, or back to it when undoing one.
+    func setWarmUpsDone(_ count: Int, for exercise: PlannedExercise, in context: ModelContext) {
+        exercise.warmUpsDone = min(max(0, count), exercise.warmUps.count)
+        try? context.save()
+    }
 
     /// Logs the set at `index`, keeping any planned record so the row does not move.
     func logSet(_ exercise: PlannedExercise, at index: Int, weightKg: Double, reps: Int, rir: Int?, in context: ModelContext) {

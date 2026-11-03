@@ -12,6 +12,8 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var now = Date.now
     @State private var window = 42
+    @State private var explainer: Explainer?
+    @Namespace private var zoom
 
     private var calendar: Calendar { coordinator.calendar }
     private var startOfToday: Date { calendar.startOfDay(for: now) }
@@ -21,6 +23,14 @@ struct HomeView: View {
     private var weekSessions: [TrainingSession] { sessions.filter { $0.weekStart == weekStart } }
     private var weekHasPlan: Bool { !weekSessions.isEmpty }
     private var snapshot: LoadSnapshot { coordinator.displaySnapshot(entries: sessions.compactMap(\.loadEntry), now: now) }
+    /// Today's recovery, once Apple Health has been read today.
+    private var recovery: RecoveryStatus? { coordinator.recovery.flatMap { calendar.isDate($0.asOf, inSameDayAs: now) ? $0 : nil } }
+    private var todaysLifting: RecoveryStatus.TodaysLifting {
+        let lifts = today.filter { $0.modality == .strength && $0.status == .planned }
+        if lifts.contains(where: { $0.loggedSetCount == 0 && $0.recoveryFactor < 1 }) { return .trimmed }
+        if lifts.contains(where: { $0.loggedSetCount > 0 }) { return .started }
+        return .none
+    }
 
     /// Planned sessions from today on, a strength session already under way first.
     private var ahead: [TrainingSession] {
@@ -44,14 +54,26 @@ struct HomeView: View {
                     dashboard
                 } else {
                     VStack(spacing: 0) {
-                        header.padding(.horizontal, 20)
+                        header.padding(.horizontal, Metrics.gutter)
                         EmptyPlanView()
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            // The greeting is part of the page and scrolls away with it; the bar keeps only its
+            // buttons, so nothing takes its place as an inline title.
+            .navigationTitle(greeting)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(removing: .title)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", systemImage: "slider.horizontal.3") { showSettings = true }
+                        // Toolbar controls stay white like the back button; violet marks what is active.
+                        .tint(Palette.ink)
+                }
+            }
             .sheet(isPresented: $showSettings) { SettingsView() }
-            .navigationDestination(for: TrainingSession.self) { SessionDetailView(session: $0) }
+            .sheet(item: $explainer) { ExplainerSheet(explainer: $0, snapshot: snapshot, recovery: recovery, lifting: todaysLifting) }
+            .zoomsSessions(in: zoom)
             .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in now = .now }
         }
     }
@@ -65,7 +87,7 @@ struct HomeView: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeader(title: "Readiness")
-                    ReadinessCard(snapshot: snapshot)
+                    ReadinessCard(snapshot: snapshot, recovery: recovery, lifting: todaysLifting) { explainer = $0 }
                     tiles
                 }
                 VStack(alignment: .leading, spacing: 12) {
@@ -79,59 +101,51 @@ struct HomeView: View {
                             ForEach(Array(comingUp.enumerated()), id: \.element.id) { index, session in
                                 if index > 0 { Divider().overlay(Palette.hairline).padding(.leading, 70) }
                                 NavigationLink(value: session) { UpcomingRow(session: session, now: now) }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .sessionZoomSource(session, cornerRadius: 22)
                             }
                         }
                         .surface()
                     }
                 }
                 trends
-                explainer
+                howLoadIsRead
                 if !forecasts.isEmpty { WeatherAttributionView() }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Metrics.gutter)
             .padding(.bottom, 40)
         }
-        .statusBarScrim()
     }
 
     // MARK: Header and hero
 
+    /// The greeting, set as the other tabs' large titles are, with the date and weather under it.
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    Text(Format.dayMonth.string(from: now))
-                    if let forecast = forecast(on: now) {
-                        HStack(spacing: 4) {
-                            Image(systemName: forecast.condition.symbolName).symbolRenderingMode(.multicolor)
-                            Text(Format.temperature(forecast.tempMaxC)).monospacedDigit()
-                        }
-                        .accessibilityLabel("\(Format.temperature(forecast.tempMaxC)), \(forecast.condition.displayName)")
-                    }
-                }
-                .font(.body2)
-                .foregroundStyle(Palette.inkSecondary)
-                Text(greeting)
-                    .font(.system(size: 28, weight: .medium))
-                    .tracking(-0.4)
-                    .foregroundStyle(Palette.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 8)
-            Button { showSettings = true } label: {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(Palette.ink)
-                    .frame(width: 50, height: 50)
-                    .background(Palette.raised, in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
+        // Spaced as Week's date range sits under its title.
+        VStack(alignment: .leading, spacing: 9) {
+            Text(greeting)
+                .font(.cadence(size: 34, weight: .bold))
+                .foregroundStyle(Palette.ink)
+                .accessibilityAddTraits(.isHeader)
+            dateLine
         }
-        .padding(.top, 8)
+    }
+
+    /// Under the greeting, as the date range sits under Week's title.
+    private var dateLine: some View {
+        HStack(spacing: 8) {
+            Text(Format.dayMonth.string(from: now))
+            if let forecast = forecast(on: now) {
+                HStack(spacing: 4) {
+                    Image(systemName: forecast.condition.symbolName).symbolRenderingMode(.multicolor)
+                    Text(Format.temperature(forecast.tempMaxC)).monospacedDigit()
+                }
+                .accessibilityLabel("\(Format.temperature(forecast.tempMaxC)), \(forecast.condition.displayName)")
+            }
+        }
+        .font(.body2)
+        .foregroundStyle(Palette.inkSecondary)
+        .accessibilityElement(children: .combine)
     }
 
     private var greeting: String {
@@ -146,9 +160,9 @@ struct HomeView: View {
     private var hero: some View {
         if let upNext, upNextIsToday {
             UpNextCard(session: upNext, isToday: true, forecast: forecast(on: upNext.date))
-            if !loggedToday.isEmpty { DayDoneCard(logged: loggedToday) }
+            if !loggedToday.isEmpty { DayDoneCard(date: now, logged: loggedToday) }
         } else {
-            DayDoneCard(logged: loggedToday)
+            DayDoneCard(date: now, logged: loggedToday)
             if let upNext {
                 UpNextCard(session: upNext, isToday: false, forecast: forecast(on: upNext.date))
             }
@@ -165,12 +179,21 @@ struct HomeView: View {
         let done = weekSessions.filter { $0.status == .completed }.count
         let counted = weekSessions.filter { $0.status != .skipped }.count
         let monotony = snapshot.monotony
+        let isFlat = (monotony ?? 0) > LoadAnalysis.monotonyLimit
         return HStack(spacing: 10) {
             StatTile(title: "Sessions", value: "\(done)", unit: "of \(counted) this week")
-            StatTile(title: "Monotony", value: monotony.map { String(format: "%.1f", $0) } ?? "–",
-                     unit: monotony.map { $0 > 2 ? "too flat" : "varied" } ?? "",
-                     tint: (monotony ?? 0) > 2 ? Palette.amber : Palette.inkTertiary)
-            StatTile(title: "Strain", value: snapshot.strain.map { Format.load($0) } ?? "–", unit: "last 7 days")
+            Button { explainer = .monotony } label: {
+                StatTile(title: "Monotony", value: Format.monotony(monotony),
+                         unit: monotony.map { _ in isFlat ? "too flat" : "varied" } ?? "",
+                         tint: isFlat ? Palette.amber : Palette.inkTertiary, explains: true)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint("Explains monotony")
+            Button { explainer = .strain } label: {
+                StatTile(title: "Strain", value: snapshot.strain.map { Format.load($0) } ?? "–", unit: "last 7 days", explains: true)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint("Explains strain")
         }
     }
 
@@ -201,13 +224,13 @@ struct HomeView: View {
                 SectionHeader(title: "Trend") {
                     MenuChip(title: "Window", selection: $window, options: [(28, "4 weeks"), (42, "6 weeks"), (84, "12 weeks")])
                 }
-                LoadTrendCard(series: series, window: window)
+                LoadTrendCard(series: series, window: window) { explainer = .trainingLoad }
                 LoadMixCard(entries: byModality, window: window)
             }
         }
     }
 
-    private var explainer: some View {
+    private var howLoadIsRead: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("How load is read").font(.rowTitle).foregroundStyle(Palette.ink)
             Text("Every session becomes one number: how hard it felt, times how long it took. Lifting, running and yoga share the scale, so a long run can be weighed against a leg day. Acute is the last week, chronic the last month. Between 0.8 and 1.3 you are adapting; above 1.5 the week got ahead of your base and the planner pulls back.")
@@ -231,7 +254,9 @@ struct UpcomingRow: View {
             SessionTile(symbol: session.modality.symbolName, tint: session.modality.tint, size: 42)
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.title).font(.rowTitle).foregroundStyle(Palette.ink).lineLimit(1)
-                Text(detail).font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary).lineLimit(1)
+                // A run's pace range can take a second line; it never truncates.
+                Text(detail).font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Text(day)

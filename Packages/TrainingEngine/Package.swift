@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TrainingEngine",
-    platforms: [.iOS(.v26), .macOS(.v15)],
+    platforms: [.iOS(.v26), .watchOS(.v26), .macOS(.v15)],
     products: [
         .library(name: "TrainingEngine", targets: ["TrainingEngine"])
     ],

@@ -57,6 +57,31 @@ struct LoadAnalysisTests {
         #expect(variedSnapshot.strain != nil)
     }
 
+    @Test("Every week in the series is read as Foster reads the last")
+    func weekly() {
+        let varied = (0..<84).map { LoadEntry(date: days($0), modality: .strength, load: $0 % 3 == 0 ? 600 : 150) }
+        let snapshot = LoadAnalysis.snapshot(entries: varied, asOf: today, calendar: calendar)
+        let weeks = snapshot.weekly
+        #expect(weeks.count == snapshot.series.count - 6)
+        #expect(weeks.last?.date == snapshot.today?.date)
+        #expect(weeks.last?.monotony == snapshot.monotony)
+        #expect(weeks.last?.strain == snapshot.strain)
+        #expect(weeks.last?.load == snapshot.weekLoad)
+
+        let week = WeeklyLoad(date: today, days: [100, 100, 100, 300, 300, 300, 0])
+        #expect(abs(week.mean - 1200.0 / 7) < 1e-9)
+        #expect(abs(week.monotony! - week.mean / week.spread) < 1e-9)
+        #expect(abs(week.strain! - 1200 * week.monotony!) < 1e-9)
+        #expect(WeeklyLoad(date: today, days: Array(repeating: 0, count: 7)).monotony == nil)
+    }
+
+    @Test("A zone's effect can be read without a snapshot")
+    func zoneEffects() {
+        #expect(Readiness.from(zone: .optimal).weeklyLoadFactor == 1.08)
+        #expect(Readiness.from(zone: .danger).loadMultiplier == 0.9)
+        #expect(Readiness.from(zone: .elevated).setReduction == 1)
+    }
+
     @Test("Loads on the same day aggregate")
     func sameDay() {
         let entries = [LoadEntry(date: today, modality: .strength, load: 300), LoadEntry(date: today.addingTimeInterval(3600), modality: .yoga, load: 250)]

@@ -9,45 +9,68 @@ struct StrengthSessionView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
     @Environment(HealthKitService.self) private var health
+    @Environment(RestTimerService.self) private var rest
+    @Environment(LiveWorkoutService.self) private var live
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Expanded exercise by position. Positions survive a regenerate; SwiftData IDs do not.
     @State private var expanded: Int?
-    @State private var confirmFinish = false
+    @State private var showFinish = false
     @FocusState private var focus: StepperField?
 
     var body: some View {
         ZStack {
             ScreenBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    if !session.exercises.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionHeader(title: "Exercise set") {
-                                Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
-                                    .font(.label.monospacedDigit())
-                                    .foregroundStyle(Palette.inkSecondary)
-                            }
-                            ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
-                                .padding(.bottom, 4)
-                            ForEach(session.orderedExercises) { exercise in
-                                ExerciseCard(
-                                    exercise: exercise,
-                                    isExpanded: expanded == exercise.order,
-                                    isEditable: session.status != .completed,
-                                    focus: $focus,
-                                    onToggle: { toggle(exercise) }
-                                )
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
+                        if !session.exercises.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                SectionHeader(title: "Movements") {
+                                    Text("\(session.loggedSetCount) of \(session.plannedSetCount) sets")
+                                        .font(.label.monospacedDigit())
+                                        .foregroundStyle(Palette.inkSecondary)
+                                        .contentTransition(.numericText(value: Double(session.loggedSetCount)))
+                                        .animation(Motion.settle, value: session.loggedSetCount)
+                                }
+                                ProgressBar(value: Double(session.loggedSetCount) / Double(max(1, session.plannedSetCount)), tint: session.status == .completed ? Palette.sage : Palette.accent)
+                                    .padding(.bottom, 4)
+                                ForEach(session.orderedExercises) { exercise in
+                                    ExerciseCard(
+                                        exercise: exercise,
+                                        isExpanded: expanded == exercise.order,
+                                        isEditable: session.status != .completed,
+                                        focus: $focus,
+                                        onToggle: { toggle(exercise, in: proxy) },
+                                        onLogged: {
+                                            startRest(after: exercise)
+                                            revealLogger(in: proxy)
+                                        }
+                                    )
+                                    .id(ExerciseCard.cardID(exercise.order))
+                                }
                             }
                         }
+                        footer
                     }
-                    footer
+                    .padding(.horizontal, Metrics.gutter)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
+        .safeAreaInset(edge: .bottom) {
+            if rest.isResting(in: session), let state = rest.state {
+                RestCard(state: state, onAdjust: { rest.adjust(by: $0) }, onSkip: { rest.stop() })
+                    .padding(.horizontal, Metrics.gutter)
+                    .padding(.bottom, 8)
+                    .transition(.rise(reduceMotion: reduceMotion))
+                    .onAppear { rest.isOnScreen = true }
+                    .onDisappear { rest.isOnScreen = false }
+            }
+        }
+        .animation(Motion.reveal, value: rest.isResting(in: session))
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 if case .weight(let order) = focus {
@@ -64,21 +87,24 @@ struct StrengthSessionView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Skip this session", systemImage: "forward.end", role: .destructive) {
+                            rest.stop(for: session)
+                            live.discard(session)
                             coordinator.skip(session, in: context)
                             dismiss()
                         }
                     } label: { Image(systemName: "ellipsis") }
+                    // Toolbar controls stay white like the back button; violet marks what is active.
+                    .tint(Palette.ink)
                 }
             } else if session.status == .completed, !session.exercises.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Reopen", systemImage: "arrow.uturn.backward") { reopen() }
+                        .tint(Palette.ink)
                 }
             }
         }
-        .confirmationDialog("Finish session?", isPresented: $confirmFinish, titleVisibility: .visible) {
-            Button("Finish with \(session.loggedSetCount) of \(session.plannedSetCount) sets") { finish() }
-        } message: {
-            Text("Unlogged sets are left out of progression. You can reopen the session later.")
+        .sheet(isPresented: $showFinish) {
+            FinishSessionSheet(session: session) { finish(rpe: $0) }
         }
         .onAppear {
             if expanded == nil { expanded = session.orderedExercises.first { !$0.isComplete }?.order }
@@ -87,10 +113,11 @@ struct StrengthSessionView: View {
             expanded = 0
         }
         .onChange(of: session.loggedSetCount) { _, _ in
+            live.progress(in: session)
             // Finishing a movement's last set moves straight on to the next one still to do.
             guard let current = session.orderedExercises.first(where: { $0.order == expanded }), current.isComplete,
                   let next = session.orderedExercises.first(where: { !$0.isComplete }) else { return }
-            withAnimation(.snappy(duration: 0.3)) { expanded = next.order }
+            withAnimation(Motion.reveal) { expanded = next.order }
         }
     }
 
@@ -103,24 +130,29 @@ struct StrengthSessionView: View {
                     .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Chip(symbol: "clock", text: Format.minutes(session.actualMinutes ?? session.plannedMinutes))
-                    if !session.exercises.isEmpty {
-                        Chip(symbol: "dumbbell", text: "\(session.plannedSetCount) sets")
-                    }
+            ChipFlow {
+                Chip(symbol: "clock", text: Format.minutes(session.actualMinutes ?? session.plannedMinutes))
+                if !session.exercises.isEmpty {
+                    Chip(symbol: "dumbbell", text: "\(session.plannedSetCount) sets")
+                }
+                if live.isRecording(session) {
+                    Chip(symbol: "heart.fill", text: Format.bpm(live.metrics.heartRate), tint: Palette.rose)
+                    Chip(symbol: "flame", text: Format.kcal(live.metrics.activeKilocalories))
+                } else {
                     if let heartRate = session.averageHeartRate {
-                        Chip(symbol: "heart", text: "\(Int(heartRate)) bpm")
+                        Chip(symbol: "heart", text: Format.bpm(heartRate))
                     }
-                    if let rir = session.loggedMeanRIR {
-                        Chip(symbol: "gauge.with.dots.needle.50percent", text: "\(String(format: "%.1f", rir)) RIR")
-                    }
-                    if session.status == .planned, session.loggedSetCount == 0 {
-                        ChangeSessionMenu(session: session)
+                    if let energy = session.activeKilocalories {
+                        Chip(symbol: "flame", text: Format.kcal(energy))
                     }
                 }
+                if let rir = session.loggedMeanRIR {
+                    Chip(symbol: "gauge.with.dots.needle.50percent", text: "\(String(format: "%.1f", rir)) RIR")
+                }
+                if session.status == .planned, session.loggedSetCount == 0 {
+                    ChangeSessionButton(session: session)
+                }
             }
-            .scrollClipDisabled()
         }
         .padding(.top, 8)
     }
@@ -129,30 +161,33 @@ struct StrengthSessionView: View {
         if session.exercises.isEmpty {
             return "Recorded outside Cadence, on your watch or in another app. It counts toward training load like any session logged here."
         }
-        let count = session.orderedExercises.count
-        let focusCount = session.orderedExercises.filter(\.isFocus).count
-        let base = "\(count) movements, \(focusCount) of them for the focus. Rate reps in reserve on each movement's last set and next week's loads follow from it."
+        let base = "\(session.orderedExercises.count) movements. Rate reps in reserve on each movement's last set and next week's loads follow from it."
         return session.status == .completed ? "Logged. \(base)" : base
     }
 
-    @ViewBuilder
     private var footer: some View {
+        footerContent.animation(Motion.reveal, value: session.status)
+    }
+
+    @ViewBuilder
+    private var footerContent: some View {
         if session.status == .planned {
             let allLogged = session.loggedSetCount >= session.plannedSetCount
             Group {
                 if allLogged {
-                    Button("Finish session", systemImage: "checkmark") { finish() }
+                    Button("Finish session", systemImage: "checkmark") { showFinish = true }
                         .buttonStyle(.primary)
                 } else {
-                    Button("Finish session", systemImage: "checkmark") { confirmFinish = true }
+                    Button("Finish session", systemImage: "checkmark") { showFinish = true }
                         .buttonStyle(.secondary)
                 }
             }
             .disabled(session.loggedSetCount == 0)
+            .transition(.reveal)
         } else if session.status == .completed {
             Card {
                 HStack(spacing: 14) {
-                    IconDisc(symbol: "checkmark", tint: Palette.sage)
+                    TitleIcon(symbol: "checkmark", tint: Palette.sage)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Logged").font(.rowTitle).foregroundStyle(Palette.ink)
                         Text(loggedSummary)
@@ -161,11 +196,12 @@ struct StrengthSessionView: View {
                     }
                 }
             }
+            .transition(.reveal)
         }
     }
 
     private var loggedSummary: String {
-        let effort = "Session RPE \(String(format: "%.1f", session.rpe ?? 0)), \(Format.load(session.load)) load units."
+        let effort = "Effort \(Format.kg(session.rpe ?? 0)), \(Format.load(session.load)) load units."
         if session.importKey != nil {
             return "Imported from your previous log, \(Format.load(session.load)) load units. Reps in reserve were assumed to be 2."
         }
@@ -178,14 +214,41 @@ struct StrengthSessionView: View {
         return "\(effort) Next week's loads are already adjusted.\(session.healthWorkoutID != nil ? " In Apple Health." : "")"
     }
 
-    private func toggle(_ exercise: PlannedExercise) {
-        withAnimation(.snappy(duration: 0.3)) {
-            expanded = expanded == exercise.order ? nil : exercise.order
+    /// Opens a movement and brings its card to the top, so it reads from its photo down whatever
+    /// collapsed above it. Closing one leaves the page where it is.
+    private func toggle(_ exercise: PlannedExercise, in proxy: ScrollViewProxy) {
+        let opening = expanded != exercise.order
+        withAnimation(Motion.reveal) {
+            expanded = opening ? exercise.order : nil
+            if opening { proxy.scrollTo(ExerciseCard.cardID(exercise.order), anchor: .top) }
         }
     }
 
-    private func finish() {
-        coordinator.complete(session, in: context)
+    /// Rest before the next set to do, sized for its movement. Nothing left to do, no rest.
+    private func startRest(after exercise: PlannedExercise) {
+        guard let next = exercise.isComplete ? session.orderedExercises.first(where: { !$0.isComplete }) : exercise,
+              let index = next.nextSetIndex else {
+            rest.stop(for: session)
+            return
+        }
+        let seconds = RestInterval.seconds(for: next.exercise?.role ?? .accessory, repRange: next.repRange)
+        rest.start(seconds: seconds, before: next, set: index, in: session)
+    }
+
+    /// Brings the next set's logger into view once the card has moved on to it, its log button
+    /// resting just above the rest card that has just appeared under it.
+    private func revealLogger(in proxy: ScrollViewProxy) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard let expanded else { return }
+            withAnimation(Motion.reveal) { proxy.scrollTo(ExerciseCard.loggerID(expanded), anchor: .bottom) }
+        }
+    }
+
+    private func finish(rpe: Double) {
+        rest.stop(for: session)
+        coordinator.complete(session, rpe: rpe, in: context)
+        live.finish(session)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await health.record(session, in: context, coordinator: coordinator) }
     }
@@ -196,8 +259,8 @@ struct StrengthSessionView: View {
     }
 }
 
-/// One movement. Expanded, it lists every set like the reference's exercise set: logged sets with
-/// a check, upcoming sets with their own weight and reps and a pencil to change them. The next set
+/// One movement, led by its photo, which opens how it moves. Expanded, it lists every set: logged sets
+/// with a check, upcoming sets with their own weight and reps and a pencil to change them. The next set
 /// opens the logger under its row. Sets can be added or removed, and before anything is logged the
 /// whole movement can switch scheme for a fresh session.
 struct ExerciseCard: View {
@@ -206,6 +269,7 @@ struct ExerciseCard: View {
     let isEditable: Bool
     var focus: FocusState<StepperField?>.Binding
     let onToggle: () -> Void
+    let onLogged: () -> Void
 
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
@@ -225,22 +289,33 @@ struct ExerciseCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button(action: onToggle) { summary.contentShape(.rect) }
-                .buttonStyle(.plain)
-                .accessibilityHint(isExpanded ? "Collapses the exercise" : "Expands the exercise to log sets")
+            HStack(spacing: 12) {
+                if let movement = exercise.exercise {
+                    Button { showMovement = true } label: { MovementThumbnail(exercise: movement, size: 56) }
+                        .buttonStyle(.control)
+                        .accessibilityLabel("How \(exercise.name) moves")
+                        .accessibilityHint("Shows the photos, the muscles worked and your history")
+                }
+                Button(action: onToggle) { summary.contentShape(.rect) }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(isExpanded ? "Collapses the exercise" : "Expands the exercise to log sets")
+            }
             if isExpanded {
                 VStack(alignment: .leading, spacing: 14) {
                     rationale
+                    if showsWarmUps { warmUpList }
                     setsHeader
                     setList
                     if isEditable { setControls }
                 }
                 .padding(.top, 14)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.reveal)
             }
         }
         .padding(16)
-        .surface(cornerRadius: 22, isActive: isExpanded && isEditable && !exercise.isComplete)
+        .surface(cornerRadius: 22)
+        // Whatever opens inside the card stays inside it while it grows.
+        .clipShape(.rect(cornerRadius: 22, style: .continuous))
         .onAppear(perform: prime)
         .onChange(of: exercise.exerciseID) { editing = nil; prime() }
         .onChange(of: selected) { prime() }
@@ -254,15 +329,10 @@ struct ExerciseCard: View {
     private var summary: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
-                    if exercise.isFocus {
-                        Image(systemName: "scope").font(.system(size: 12, weight: .semibold)).foregroundStyle(Palette.accent)
-                            .accessibilityLabel("Focus movement")
-                    }
-                }
-                Text("\(exercise.targetSets) × \(exercise.repLower) to \(exercise.repUpper), last set \(exercise.targetRIR) in reserve")
+                Text(exercise.name).font(.rowTitle).foregroundStyle(Palette.ink)
+                Text("\(exercise.targetSets) × \(exercise.repLower) to \(exercise.repUpper), \(exercise.targetRIR) RIR")
                     .font(.body2).foregroundStyle(Palette.inkSecondary)
+                    .accessibilityLabel("\(exercise.targetSets) sets of \(exercise.repLower) to \(exercise.repUpper), the last with \(exercise.targetRIR) reps in reserve")
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
@@ -276,30 +346,80 @@ struct ExerciseCard: View {
                             .frame(width: 12, height: 4)
                     }
                 }
+                .animation(Motion.settle, value: exercise.completedSets.count)
                 .accessibilityLabel("\(exercise.completedSets.count) of \(exercise.targetSets) sets done")
             }
         }
     }
 
     private var rationale: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(exercise.rationale)
-                .font(.body2)
-                .foregroundStyle(Palette.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if exercise.exercise != nil {
-                Button { showMovement = true } label: {
-                    IconDisc(symbol: "figure.strengthtraining.traditional")
-                        .frame(width: 44, height: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, -5)
-                .accessibilityLabel("How it moves")
-                .accessibilityHint("Shows the drawing, the muscles worked and the history for \(exercise.name)")
+        Text(exercise.rationale)
+            .font(.body2)
+            .foregroundStyle(Palette.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Warm-ups lead the movement until its first working set is logged; after that they have done their job.
+    private var showsWarmUps: Bool { isEditable && exercise.completedSets.isEmpty && !exercise.warmUps.isEmpty }
+
+    private var warmUpList: some View {
+        let ramp = exercise.warmUps
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Warm-up").font(.rowTitle).foregroundStyle(Palette.ink)
+                Spacer()
+                Text("Not counted").font(.label).foregroundStyle(Palette.inkTertiary)
             }
+            .padding(.bottom, 6)
+            ForEach(ramp.indices, id: \.self) { index in warmUpRow(ramp[index], at: index) }
         }
+    }
+
+    /// A warm-up set, on clear glass rather than filled so it reads lighter than a working set. Tapping
+    /// ticks it and those before it off; tapping a ticked one undoes it and those after it.
+    private func warmUpRow(_ set: WarmUpSet, at index: Int) -> some View {
+        let done = index < exercise.warmUpsDone
+        return Button {
+            withAnimation(Motion.settle) { coordinator.setWarmUpsDone(done ? index : index + 1, for: exercise, in: context) }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            HStack(spacing: 0) {
+                Group {
+                    if done {
+                        Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.accent)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    } else {
+                        Text("W").font(.label).foregroundStyle(Palette.inkTertiary)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: 28, alignment: .leading)
+                Text("\(Format.kg(set.weightKg)) kg").font(.numeralSmall)
+                    .foregroundStyle(done ? Palette.ink : Palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(set.reps) reps").font(.numeralSmall)
+                    .foregroundStyle(done ? Palette.ink : Palette.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The working rows' RIR column, so weights and reps line up across both lists.
+                Color.clear.frame(width: 52, height: 1)
+                Image(systemName: done ? "arrow.uturn.backward" : "checkmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Palette.inkTertiary)
+                    .contentTransition(.symbolEffect(.replace))
+                    // Centred where the working sets' glass buttons are.
+                    .padding(.trailing, 18)
+                    .frame(width: 58, height: 44, alignment: .trailing)
+            }
+            .padding(.leading, 14)
+            .frame(minHeight: 48)
+        }
+        .buttonStyle(.option(cornerRadius: 14, isCurrent: false))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Warm-up \(index + 1), \(Format.kg(set.weightKg)) kilograms for \(set.reps) reps")
+        .accessibilityValue(done ? "Done" : "Not done")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(done ? "Undoes this warm-up" : "Ticks this warm-up off")
     }
 
     private var setsHeader: some View {
@@ -312,7 +432,7 @@ struct ExerciseCard: View {
                         ForEach(SchemePreset.presets(for: role)) { preset in
                             Button {
                                 editing = nil
-                                coordinator.apply(preset, to: exercise, in: context)
+                                withAnimation(Motion.reveal) { coordinator.apply(preset, to: exercise, in: context) }
                                 UISelectionFeedbackGenerator().selectionChanged()
                             } label: {
                                 let label = "\(preset.name), \(preset.sets) × \(preset.reps.lowerBound) to \(preset.reps.upperBound)"
@@ -334,7 +454,7 @@ struct ExerciseCard: View {
             ForEach(0..<exercise.targetSets, id: \.self) { index in
                 VStack(spacing: 10) {
                     setRow(index)
-                    if isEditable, index == selected { editor(for: index) }
+                    if isEditable, index == selected { editor(for: index).transition(.reveal) }
                 }
             }
         }
@@ -351,16 +471,21 @@ struct ExerciseCard: View {
             Group {
                 if logged {
                     Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.accent)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                 } else {
                     Text("\(index + 1)").font(.label.monospacedDigit()).foregroundStyle(isSelected ? Palette.accent : Palette.inkTertiary)
+                        .transition(.opacity)
                 }
             }
             .frame(width: 28, alignment: .leading)
+            // Stepping the weight or reps rolls the row's figures to the new value.
             Text("\(Format.kg(shown.weightKg)) kg").font(.numeralSmall)
                 .foregroundStyle(logged || isSelected ? Palette.ink : Palette.inkSecondary)
+                .contentTransition(.numericText(value: shown.weightKg))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(shown.reps) reps").font(.numeralSmall)
                 .foregroundStyle(logged || isSelected ? Palette.ink : Palette.inkSecondary)
+                .contentTransition(.numericText(value: Double(shown.reps)))
                 .frame(maxWidth: .infinity, alignment: .leading)
             // A fixed column so reps line up whether or not the set was rated.
             Text(record?.rir.map { "\($0) RIR" } ?? "")
@@ -369,34 +494,40 @@ struct ExerciseCard: View {
                 .frame(width: 52, alignment: .trailing)
             if isEditable {
                 Button {
-                    if logged, let record {
-                        coordinator.unlogSet(record, in: context)
-                        editing = nil
-                    } else {
-                        withAnimation(.snappy(duration: 0.25)) { editing = index == exercise.nextSetIndex ? nil : index }
+                    withAnimation(Motion.reveal) {
+                        if logged, let record {
+                            coordinator.unlogSet(record, in: context)
+                            editing = nil
+                        } else {
+                            editing = index == exercise.nextSetIndex ? nil : index
+                        }
                     }
                 } label: {
-                    Image(systemName: logged ? "arrow.uturn.backward" : "pencil")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? Palette.accent : Palette.inkTertiary)
-                        .frame(width: 44, height: 44)
+                    // Inset from the edge as far as the set number is on the left, with the
+                    // inset still part of the tap target.
+                    GlassIcon(symbol: logged ? "arrow.uturn.backward" : "pencil", size: 34)
+                        .contentTransition(.symbolEffect(.replace))
+                        .padding(.trailing, 7)
+                        .frame(width: 58, height: 44, alignment: .trailing)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, -12)
                 .accessibilityLabel(logged ? "Undo set \(index + 1)" : "Change set \(index + 1)")
             }
         }
         .padding(.leading, 14)
         .padding(.trailing, isEditable ? 0 : 14)
         .frame(minHeight: 48)
-        .background(Palette.raised.opacity(logged ? 0.7 : 0.4), in: .rect(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Palette.accent : Color.clear, lineWidth: 1.5)
-        }
+        // The set being logged is lit with a wash of the violet, not outlined.
+        .background(isSelected ? Palette.accent.opacity(0.16) : Palette.raised.opacity(logged ? 0.7 : 0.4),
+                    in: .rect(cornerRadius: 14, style: .continuous))
+        .animation(Motion.settle, value: isSelected)
+        .animation(Motion.settle, value: logged)
         .accessibilityElement(children: .combine)
     }
+
+    static func loggerID(_ order: Int) -> String { "logger-\(order)" }
+    static func cardID(_ order: Int) -> String { "movement-\(order)" }
 
     private func editor(for index: Int) -> some View {
         VStack(spacing: 12) {
@@ -416,7 +547,7 @@ struct ExerciseCard: View {
                 .buttonStyle(.primary)
             } else {
                 HStack(spacing: 10) {
-                    Button("Cancel") { withAnimation(.snappy(duration: 0.25)) { editing = nil } }
+                    Button("Cancel") { withAnimation(Motion.reveal) { editing = nil } }
                         .buttonStyle(.secondary)
                     Button("Save set \(index + 1)") { save(at: index) }
                         .buttonStyle(.primary)
@@ -424,21 +555,33 @@ struct ExerciseCard: View {
             }
         }
         .padding(.bottom, 4)
+        .id(Self.loggerID(exercise.order))
     }
 
+    /// Add set, Remove and Swap on one line; where Sora's wider words leave no room for all
+    /// three, Swap keeps its glyph alone rather than every label being cut short.
     private var setControls: some View {
+        ViewThatFits(in: .horizontal) {
+            setControlsRow(swapLabelled: true)
+            setControlsRow(swapLabelled: false)
+        }
+    }
+
+    private func setControlsRow(swapLabelled: Bool) -> some View {
         let canRemove = exercise.targetSets > 1 && exercise.record(at: exercise.targetSets - 1)?.completedAt == nil
         return HStack(spacing: 8) {
-            Button { coordinator.addSet(to: exercise, in: context) } label: {
-                Chip(symbol: "plus", text: "Add set", tint: Palette.accent)
+            Button { withAnimation(Motion.reveal) { coordinator.addSet(to: exercise, in: context) } } label: {
+                Chip(symbol: "plus", text: "Add set", tint: Palette.accent, glass: true)
             }
             .buttonStyle(.plain)
             .disabled(exercise.targetSets >= 10)
             Button {
-                if editing == exercise.targetSets - 1 { editing = nil }
-                coordinator.removeLastSet(from: exercise, in: context)
+                withAnimation(Motion.reveal) {
+                    if editing == exercise.targetSets - 1 { editing = nil }
+                    coordinator.removeLastSet(from: exercise, in: context)
+                }
             } label: {
-                Chip(symbol: "minus", text: "Remove", tint: Palette.inkSecondary)
+                Chip(symbol: "minus", text: "Remove", tint: Palette.inkSecondary, glass: true)
             }
             .buttonStyle(.plain)
             .disabled(!canRemove)
@@ -446,7 +589,11 @@ struct ExerciseCard: View {
             Spacer(minLength: 0)
             if exercise.completedSets.isEmpty {
                 Button { showSwap = true } label: {
-                    Chip(symbol: "arrow.left.arrow.right", text: "Swap", tint: Palette.inkSecondary)
+                    if swapLabelled {
+                        Chip(symbol: "arrow.left.arrow.right", text: "Swap", tint: Palette.inkSecondary, glass: true)
+                    } else {
+                        GlassIcon(symbol: "arrow.left.arrow.right", size: 40)
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Swap movement")
@@ -467,14 +614,21 @@ struct ExerciseCard: View {
 
     private func log(at index: Int) {
         focus.wrappedValue = nil
-        coordinator.logSet(exercise, at: index, weightKg: weight, reps: reps, rir: asksRIR ? rir : nil, in: context)
+        // The check lands, the editor moves down to the next set, and the progress fills, together.
+        withAnimation(Motion.reveal) {
+            coordinator.logSet(exercise, at: index, weightKg: weight, reps: reps, rir: asksRIR ? rir : nil, in: context)
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        SoundEffects.play(.setLogged)
+        onLogged()
     }
 
     private func save(at index: Int) {
         focus.wrappedValue = nil
-        coordinator.planSet(exercise, at: index, weightKg: weight, reps: reps, in: context)
-        withAnimation(.snappy(duration: 0.25)) { editing = nil }
+        withAnimation(Motion.reveal) {
+            coordinator.planSet(exercise, at: index, weightKg: weight, reps: reps, in: context)
+            editing = nil
+        }
         UISelectionFeedbackGenerator().selectionChanged()
     }
 
@@ -540,11 +694,9 @@ struct DialStepper: View {
             stepButton("plus") { value += step }
         }
         .padding(8)
-        .background(Palette.raised.opacity(0.7), in: .rect(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(isFocused ? Palette.accent : Color.clear, lineWidth: 1.5)
-        }
+        // Typing into it lights it with the violet, as the set being logged is lit.
+        .background(isFocused ? Palette.accent.opacity(0.16) : Palette.raised.opacity(0.7), in: .rect(cornerRadius: 18, style: .continuous))
+        .animation(Motion.settle, value: isFocused)
         .onAppear { text = format(value) }
         .onChange(of: value) { _, new in
             if !isFocused { text = format(new) }
@@ -564,19 +716,14 @@ struct DialStepper: View {
 
     private func stepButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button {
-            withAnimation(.snappy(duration: 0.2)) { action() }
+            withAnimation(Motion.settle) { action() }
             if isFocused { text = format(value) }
             UISelectionFeedbackGenerator().selectionChanged()
         } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 44, height: 44)
-                .overlay { Circle().strokeBorder(Palette.stroke, lineWidth: 1) }
-                .contentShape(.circle)
+            GlassIcon(symbol: symbol)
         }
         .buttonStyle(.plain)
         .buttonRepeatBehavior(.enabled)
-        .foregroundStyle(Palette.ink)
         .accessibilityLabel(symbol == "plus" ? "Increase \(title)" : "Decrease \(title)")
     }
 }

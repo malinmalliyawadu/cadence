@@ -24,4 +24,19 @@ struct RealExportSmokeTest {
         #expect(Double(unmapped) / Double(mapped + unmapped) < 0.02, "more than 2% of working sets did not map")
         #expect(!result.strength.isEmpty)
     }
+
+    @Test("Warm-up rule matches which movements the athlete warmed up for")
+    func warmUps() throws {
+        let path = NSString(string: ProcessInfo.processInfo.environment["CADENCE_EXPORT"]!).expandingTildeInPath
+        let result = try WorkoutExportParser.parse(String(contentsOfFile: path, encoding: .utf8))
+        let exposures = result.strength.flatMap(\.exercises).filter { !$0.workingSets.isEmpty }
+        var mismatches: [String: Int] = [:]
+        for exposure in exposures {
+            guard let exercise = ExerciseLibrary.exercise(id: exposure.exerciseID) else { continue }
+            if WarmUp.needsWarmUp(exercise) != exposure.sets.contains(where: \.isWarmup) { mismatches[exercise.id, default: 0] += 1 }
+        }
+        let agreement = 1 - Double(mismatches.values.reduce(0, +)) / Double(exposures.count)
+        print("warm-up agreement \(String(format: "%.1f", agreement * 100))% over \(exposures.count) exposures, mismatches:", mismatches.sorted { $0.value > $1.value })
+        #expect(agreement > 0.9)
+    }
 }

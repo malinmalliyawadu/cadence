@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Spacing every screen shares.
+enum Metrics {
+    /// The side margin, the same as the system's: content lines up with the large title, the
+    /// back button and the toolbar's glass.
+    static let gutter: CGFloat = 16
+}
+
 /// The black every screen sits on.
 struct ScreenBackground: View {
     var body: some View {
@@ -7,24 +14,9 @@ struct ScreenBackground: View {
     }
 }
 
-extension View {
-    /// Keeps scrolled content out from under the status bar on screens without a navigation bar.
-    func statusBarScrim() -> some View {
-        overlay(alignment: .top) {
-            GeometryReader { proxy in
-                Palette.canvas
-                    .frame(height: proxy.safeAreaInsets.top)
-                    .ignoresSafeArea(edges: .top)
-            }
-            .allowsHitTesting(false)
-        }
-    }
-}
-
-/// A flat card with a hairline edge. `isActive` swaps the hairline
-/// for the accent, the way the set being logged is outlined.
+/// A flat card, no edge: the indigo surface against the black is the whole of it. What is active
+/// says so with its content (the violet button, the set being logged), never with an outline.
 struct Card<Content: View>: View {
-    var isActive = false
     var cornerRadius: CGFloat = 22
     var padding: CGFloat = 16
     @ViewBuilder var content: Content
@@ -33,30 +25,23 @@ struct Card<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .surface(cornerRadius: cornerRadius, isActive: isActive)
+            .surface(cornerRadius: cornerRadius)
     }
 }
 
 extension View {
-    func surface(cornerRadius: CGFloat = 22, isActive: Bool = false) -> some View {
-        background {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(Palette.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(isActive ? Palette.accent : Palette.hairline, lineWidth: isActive ? 1.5 : 1)
-                }
-        }
+    func surface(cornerRadius: CGFloat = 22) -> some View {
+        background(Palette.surface, in: .rect(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
-/// Icon and value in a capsule: "55 min", "19 sets". Outlined by default; `filled` for
-/// chips that sit on a card and would otherwise outline against an outline.
+/// Icon and value in a capsule: "55 min", "19 sets". Facts are outlined; `glass` is for a chip
+/// that does something ("Change", "Add set"), so actions read apart from facts at a glance.
 struct Chip: View {
     var symbol: String?
     var text: String
     var tint: Color = Palette.ink
-    var filled = false
+    var glass = false
 
     var body: some View {
         HStack(spacing: 7) {
@@ -66,33 +51,75 @@ struct Chip: View {
                     .foregroundStyle(tint)
             }
             Text(text)
-                .font(.system(size: 15, weight: .medium).monospacedDigit())
+                .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 40)
         .background {
-            Capsule()
-                .fill(filled ? Palette.raised : Color.clear)
-                .overlay { Capsule().strokeBorder(filled ? Color.clear : Palette.stroke, lineWidth: 1) }
+            if !glass { Capsule().strokeBorder(Palette.stroke, lineWidth: 1) }
         }
+        .contentShape(.capsule)
+        .glassEffect(glass ? .regular.interactive() : .identity, in: .capsule)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// A small outlined circle holding a glyph, used ahead of a stat's title.
-struct IconDisc: View {
+/// A round glass control holding a glyph: a stepper's minus and plus, skip, close.
+struct GlassIcon: View {
     let symbol: String
-    var tint: Color = Palette.ink
-    var size: CGFloat = 34
+    var size: CGFloat = 44
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.42, weight: .medium))
-            .foregroundStyle(tint)
+            .font(.system(size: size * 0.34, weight: .semibold))
+            .foregroundStyle(Palette.ink)
             .frame(width: size, height: size)
-            .overlay { Circle().strokeBorder(Palette.stroke, lineWidth: 1) }
+            .contentShape(.circle)
+            .glassEffect(.regular.interactive(), in: .circle)
+    }
+}
+
+/// A status word in its tint, outlined in the same: "Sweet spot", "Recovered", "Too flat".
+struct StatusChip: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.label)
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .overlay { Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1) }
+            .fixedSize()
+    }
+}
+
+/// Beside a title whose figure opens an explainer.
+struct InfoGlyph: View {
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Palette.inkTertiary)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The glyph ahead of a card's title: no disc or outline, flush with the card's text, in a fixed
+/// slot so titles line up whichever glyph leads them. The slot is as tall as a title row needs
+/// to be, so the card's content keeps its distance below the title.
+struct TitleIcon: View {
+    let symbol: String
+    var tint: Color = Palette.ink
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: 24, height: 34, alignment: .leading)
             .accessibilityHidden(true)
     }
 }
@@ -107,6 +134,7 @@ struct SessionTile: View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.38, weight: .medium))
             .foregroundStyle(tint)
+            .contentTransition(.symbolEffect(.replace))
             .frame(width: size, height: size)
             .background {
                 RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
@@ -144,107 +172,166 @@ extension SectionHeader where Trailing == EmptyView {
     }
 }
 
-/// The label of a dropdown: "This week" with a chevron, in a filled capsule.
+/// The label of a dropdown: "This week" with a chevron, on glass. In a toolbar the system draws
+/// the glass, so the label leaves it out.
 struct MenuChipLabel: View {
     let text: String
+    var glass = true
 
     var body: some View {
         HStack(spacing: 6) {
             Text(text)
-                .font(.system(size: 14, weight: .medium))
+                .font(.cadence(size: 14, weight: .medium))
+                .contentTransition(.interpolate)
             Image(systemName: "chevron.down")
                 .font(.system(size: 11, weight: .semibold))
         }
         .foregroundStyle(Palette.ink)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, glass ? 14 : 4)
         .frame(minHeight: 34)
-        .background(Palette.raised, in: .capsule)
         .contentShape(.capsule)
+        .glassEffect(glass ? .regular.interactive() : .identity, in: .capsule)
     }
 }
 
-/// A dropdown chip that picks one of a few values.
+/// A dropdown chip that picks one of a few values. Whatever the value drives moves to its new
+/// state rather than jumping.
 struct MenuChip<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
     let options: [(Value, String)]
+    var glass = true
 
     var body: some View {
         Menu {
-            Picker(title, selection: $selection) {
+            Picker(title, selection: $selection.animation(Motion.settle)) {
                 ForEach(options, id: \.0) { value, label in Text(label).tag(value) }
             }
         } label: {
-            MenuChipLabel(text: options.first { $0.0 == selection }?.1 ?? title)
+            MenuChipLabel(text: options.first { $0.0 == selection }?.1 ?? title, glass: glass)
         }
         .accessibilityLabel(title)
         .accessibilityValue(options.first { $0.0 == selection }?.1 ?? "")
     }
 }
 
-/// A row of capsules that behaves like a segmented control. The selected one fills with the accent.
+/// A segmented control on glass: one glass track, with the violet sliding to the segment picked.
+/// History's pages, reps in reserve, a session's half.
 struct ChipPicker<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
     let options: [(Value, String)]
+    @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(options, id: \.0) { value, label in
                 let isSelected = value == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) { selection = value }
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    withAnimation(Motion.settle) { selection = value }
                 } label: {
                     Text(label)
-                        .font(.system(size: 15, weight: .medium).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.white : Palette.inkSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .font(.cadence(size: 15, weight: .medium).monospacedDigit())
+                        .foregroundStyle(isSelected ? Palette.onAccent : Palette.inkSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 40)
                         .background {
-                            Capsule()
-                                .fill(isSelected ? Palette.accent : Palette.raised)
+                            if isSelected {
+                                Capsule().fill(Palette.accent).matchedGeometryEffect(id: "selection", in: pill)
+                            }
                         }
                         .contentShape(.capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.control)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
+        .padding(4)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .sensoryFeedback(.selection, trigger: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
     }
 }
 
-/// The one blue capsule on a screen.
+/// The one violet capsule on a screen, its label in the icon's indigo: glass tinted with the
+/// icon's violet, so it is the thing to do and still made of what everything around it is.
 struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(.white)
+            .font(.cadence(size: 17, weight: .semibold))
+            .foregroundStyle(isEnabled ? Palette.onAccent : Palette.inkTertiary)
             .frame(maxWidth: .infinity, minHeight: 54)
-            .background(Palette.accent.opacity(isEnabled ? 1 : 0.35), in: .capsule)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            .contentShape(.capsule)
+            .glassEffect(isEnabled ? .regular.tint(Palette.accent).interactive() : .regular, in: .capsule)
+            .animation(Motion.settle, value: isEnabled)
     }
 }
 
-/// Everything that is an action but not the action.
+/// Everything that is an action but not the action, on clear glass.
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .medium))
+            .font(.cadence(size: 16, weight: .medium))
             .foregroundStyle(Palette.ink.opacity(isEnabled ? 1 : 0.4))
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Palette.raised, in: .capsule)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            .contentShape(.capsule)
+            .glassEffect(isEnabled ? .regular.interactive() : .regular, in: .capsule)
     }
+}
+
+/// A card, or part of one, that opens something: it dims under the finger, nothing more, so a
+/// section inside a card never shrinks away from its neighbours.
+struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// A small control that is not glass (a set row's pencil, a warm-up, a segment): it gives a
+/// little under the finger, so the tap is felt before it is acted on.
+struct ControlButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// A choice laid out as a row or a tile (a focus, a run type, a day, a replacement movement):
+/// glass in the shape it is given, lit with the violet when it is the current one.
+struct OptionButtonStyle: ButtonStyle {
+    var cornerRadius: CGFloat = 18
+    var isCurrent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect(cornerRadius: cornerRadius, style: .continuous))
+            .glassEffect(isCurrent ? .regular.tint(Palette.accent.opacity(0.35)).interactive() : .regular.interactive(),
+                         in: .rect(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+extension ButtonStyle where Self == OptionButtonStyle {
+    static var option: OptionButtonStyle { OptionButtonStyle() }
+    static func option(cornerRadius: CGFloat = 18, isCurrent: Bool) -> OptionButtonStyle {
+        OptionButtonStyle(cornerRadius: cornerRadius, isCurrent: isCurrent)
+    }
+}
+
+extension ButtonStyle where Self == PressableButtonStyle {
+    static var pressable: PressableButtonStyle { PressableButtonStyle() }
+}
+
+extension ButtonStyle where Self == ControlButtonStyle {
+    static var control: ControlButtonStyle { ControlButtonStyle() }
 }
 
 extension ButtonStyle where Self == PrimaryButtonStyle {
@@ -255,20 +342,73 @@ extension ButtonStyle where Self == SecondaryButtonStyle {
     static var secondary: SecondaryButtonStyle { SecondaryButtonStyle() }
 }
 
-/// A thin track with an accent fill, for sets logged against sets planned.
+/// A thin track with an accent fill, for sets logged against sets planned. The fill moves to a
+/// new value; `animation` sets how (the rest timer's runs linearly with the clock).
 struct ProgressBar: View {
     let value: Double
     var tint: Color = Palette.accent
+    var animation: Animation = Motion.settle
 
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.1))
                 Capsule().fill(tint).frame(width: max(0, min(1, value)) * proxy.size.width)
+                    .animation(animation, value: value)
             }
         }
         .frame(height: 4)
         .accessibilityElement()
         .accessibilityValue(Format.percent(value))
+    }
+}
+
+/// Chips in rows that wrap: as many as fit on a line, the rest on the next. Nothing scrolls
+/// sideways or truncates, so a wet, windy day just takes a second line.
+struct ChipFlow: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(for: subviews, width: proposal.width ?? .infinity)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: proposal.width ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(for: subviews, width: bounds.width) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func rows(for subviews: Subviews, width: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            if needed > width, !current.indices.isEmpty {
+                rows.append(current)
+                current = Row()
+            }
+            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+            current.indices.append(index)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
     }
 }

@@ -25,17 +25,23 @@ final class TrainingSession {
     var importKey: String?
     /// The HealthKit workout this session was completed from, if any.
     var healthWorkoutID: String?
+    /// Average heart rate over the workout, from Apple Health.
+    var averageHeartRate: Double?
+    /// Active energy over the workout, from Apple Health.
+    var activeKilocalories: Double?
 
     // Strength
     var halfRaw: String?
     var focusRaw: String?
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.session) var exercises: [PlannedExercise]
+    /// The recovery multiplier today's loads are prescribed at, so a new reading re-prescribes only when it changes them.
+    var recoveryFactor: Double = 1
+    /// Recorded live by the watch, which saves the workout to Health, so finishing waits for that rather than saving an estimate.
+    var recordedLive: Bool = false
 
     // Running
     var runKindRaw: String?
     var distanceKm: Double?
-    /// Average heart rate over the run, from Apple Health.
-    var averageHeartRate: Double?
 
     /// Seconds per kilometre for a finished run.
     var actualPace: Double? {
@@ -156,6 +162,8 @@ final class PlannedExercise {
     var rationale: String
     var session: TrainingSession?
     @Relationship(deleteRule: .cascade, inverse: \SetRecord.exercise) var sets: [SetRecord]
+    /// Warm-up sets ticked off, from the lightest. Warm-ups are never logged as sets.
+    var warmUpsDone: Int = 0
 
     init(prescription: ExercisePrescription, order: Int) {
         exerciseID = prescription.exercise.id
@@ -206,9 +214,20 @@ final class PlannedExercise {
         return (prescribedWeightKg ?? max(0, exercise?.startingWeightKg ?? 0), repLower)
     }
 
+    /// The ramp to the first working set, so changing that set's weight moves the warm-ups with it.
+    var warmUps: [WarmUpSet] {
+        guard let exercise else { return [] }
+        return WarmUp.sets(for: exercise, workingWeightKg: target(at: 0).weightKg)
+    }
+
     /// What the engine needs to progress this movement next time.
     var historyEntry: ExerciseHistoryEntry? {
-        let performed = completedSets.filter { $0.reps > 0 }.map { PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir) }
+        // Each set is read once before sorting: across a long history, model reads are the cost.
+        let performed = sets
+            .map { (index: $0.index, isLogged: $0.completedAt != nil, set: PerformedSet(weightKg: $0.weightKg, reps: $0.reps, rir: $0.rir)) }
+            .filter { $0.isLogged && $0.set.reps > 0 }
+            .sorted { $0.index < $1.index }
+            .map(\.set)
         guard !performed.isEmpty, let date = session?.completedAt ?? session?.date else { return nil }
         return ExerciseHistoryEntry(exerciseID: exerciseID, date: date, targetReps: repRange, targetRIR: targetRIR, sets: performed)
     }

@@ -25,11 +25,7 @@ public struct ExercisePrescription: Codable, Sendable, Hashable, Identifiable {
 
     /// Estimated minutes including rest, used by the planner's load model.
     public var estimatedMinutes: Double {
-        let restSeconds: Double = switch exercise.role {
-        case .compound: 150
-        case .accessory: 105
-        case .isolation: 75
-        }
+        let restSeconds = RestInterval.seconds(for: exercise.role, repRange: repRange)
         let perSet = Double(repRange.upperBound) * exercise.secondsPerRep + restSeconds
         return perSet * Double(sets) / 60
     }
@@ -77,6 +73,7 @@ public enum Progression {
     ///   - repRange: the rep range the next session will prescribe.
     ///   - targetRIR: the RIR the next session will prescribe.
     ///   - readiness: multiplier from load management, 1.0 when fresh. Values below 1 cut load.
+    ///   - readinessReason: why a cut applies, as a clause ("HRV is below your normal range"). Defaults to load.
     ///   - bodyweightKg: the athlete's bodyweight. For bodyweight movements (dips, pull-ups) the
     ///     logged weight is the *added* load, so the e1RM is computed on bodyweight plus added load
     ///     and the prescription is converted back to added load. Ignored for everything else.
@@ -86,6 +83,7 @@ public enum Progression {
         repRange: ClosedRange<Int>,
         targetRIR: Int,
         readiness: Double = 1.0,
+        readinessReason: String? = nil,
         bodyweightKg: Double = 0
     ) -> ProgressionResult {
         let increment = exercise.equipment.incrementKg
@@ -97,9 +95,16 @@ public enum Progression {
 
         guard let last = recent.first, let lastE1RM = last.sessionOneRepMax(bodyweightKg: base) else {
             let start = exercise.startingWeightKg > 0 ? roundToIncrement(exercise.startingWeightKg * readiness, increment: increment) : nil
-            return ProgressionResult(weightKg: start, decision: .start, rationale: start == nil
-                ? "First time on this movement. Work up to a weight where \(repRange.lowerBound) reps leaves \(targetRIR) in reserve."
-                : "First time on this movement. Starting conservatively; log honest RIR and the load will self-correct next week.")
+            let rationale: String
+            if start == nil {
+                rationale = "First time on this movement. Work up to a weight where \(repRange.lowerBound) reps leaves \(targetRIR) in reserve."
+            } else if readiness < 0.97 {
+                let reason = clause(readinessReason ?? "Training load is running high this week")
+                rationale = "First time on this movement, and \(reason), so this starts \(Int(((1 - readiness) * 100).rounded()))% lighter. Log honest RIR and the load will self-correct next week."
+            } else {
+                rationale = "First time on this movement. Starting conservatively; log honest RIR and the load will self-correct next week."
+            }
+            return ProgressionResult(weightKg: start, decision: .start, rationale: rationale)
         }
 
         // Stall detection: three sessions with no e1RM growth means fatigue is masking fitness.
@@ -129,7 +134,8 @@ public enum Progression {
         let rationale: String
         if readiness < 0.97 {
             decision = .readinessCut
-            rationale = "Training load is running high this week, so this is \(Int((1 - readiness) * 100))% lighter than you have earned. Keep the RIR honest."
+            let reason = readinessReason ?? "Training load is running high this week"
+            rationale = "\(reason), so this is \(Int(((1 - readiness) * 100).rounded()))% lighter than you have earned. Keep the RIR honest."
         } else if lastMeanRIR >= Double(last.targetRIR) + 1 {
             next = max(next, roundToIncrement(lastWeight + increment, increment: increment))
             decision = .increase
@@ -149,6 +155,12 @@ public enum Progression {
         }
 
         return ProgressionResult(weightKg: max(next, 0), decision: decision, rationale: rationale)
+    }
+
+    /// A sentence opening as a mid-sentence clause: "Training load" becomes "training load", "HRV" stays.
+    private static func clause(_ text: String) -> String {
+        guard let first = text.first, let second = text.dropFirst().first, second.isLowercase else { return text }
+        return first.lowercased() + text.dropFirst()
     }
 
     private static func formatRIR(_ value: Double) -> String {

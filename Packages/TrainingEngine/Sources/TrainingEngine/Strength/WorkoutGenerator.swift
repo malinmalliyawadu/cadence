@@ -18,6 +18,8 @@ public struct StrengthSessionRequest: Sendable {
     public var history: [ExerciseHistoryEntry]
     /// Load-management multiplier from `ReadinessPolicy`. 1.0 means train as earned.
     public var readiness: Double
+    /// Why `readiness` trims load, when recovery rather than load is the reason.
+    public var readinessReason: String?
     /// Sets removed from every non-isolation movement when load is running high.
     public var setReduction: Int
     /// Any stable integer. Changing it rotates accessory choices.
@@ -35,6 +37,7 @@ public struct StrengthSessionRequest: Sendable {
         recentExerciseIDs: Set<String> = [],
         history: [ExerciseHistoryEntry] = [],
         readiness: Double = 1.0,
+        readinessReason: String? = nil,
         setReduction: Int = 0,
         variationSeed: Int = 0,
         bodyweightKg: Double = 0,
@@ -47,6 +50,7 @@ public struct StrengthSessionRequest: Sendable {
         self.recentExerciseIDs = recentExerciseIDs
         self.history = history
         self.readiness = readiness
+        self.readinessReason = readinessReason
         self.setReduction = setReduction
         self.variationSeed = variationSeed
         self.bodyweightKg = bodyweightKg
@@ -138,6 +142,7 @@ public enum WorkoutGenerator {
                 repRange: slot.scheme.reps,
                 targetRIR: slot.scheme.rir,
                 readiness: request.readiness,
+                readinessReason: request.readinessReason,
                 bodyweightKg: request.bodyweightKg
             )
             prescriptions.append(ExercisePrescription(
@@ -180,6 +185,7 @@ public enum WorkoutGenerator {
             repRange: scheme.reps,
             targetRIR: scheme.rir,
             readiness: request.readiness,
+            readinessReason: request.readinessReason,
             bodyweightKg: request.bodyweightKg
         )
         return ExercisePrescription(

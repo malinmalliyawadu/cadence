@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct EmptyPlanView: View {
     @Environment(\.modelContext) private var context
     @Environment(PlanCoordinator.self) private var coordinator
+    @Environment(HealthKitService.self) private var health
     @Query private var sessions: [TrainingSession]
     @State private var showImporter = false
     @State private var importing = false
@@ -14,19 +15,15 @@ struct EmptyPlanView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Spacer()
-            ProgressRing(progress: 0) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(Palette.inkSecondary)
-            }
-            .frame(maxWidth: 220)
-            .frame(maxWidth: .infinity)
+            OrbitMark(drawsIn: true)
+                .frame(maxWidth: 168)
+                .frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 10) {
                 DisplayText(text: "This week is unwritten.")
                 Text(sessions.isEmpty
-                     ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve. Connect Apple Health in settings so runs and classes log themselves."
+                     ? "Cadence builds your week around four lifts, your runs and hot yoga, then sizes every set from reps in reserve.\(health.isEnabled ? "" : " Connect Apple Health in settings so runs and classes log themselves.")"
                      : "Plan the week and the lifts pick up exactly where your last session left off.")
-                    .font(.system(size: 17))
+                    .font(.cadence(size: 17))
                     .foregroundStyle(Palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -47,14 +44,14 @@ struct EmptyPlanView: View {
                 .disabled(importing)
             }
             if let importMessage {
-                Text(importMessage).font(.footnote).foregroundStyle(Palette.inkSecondary)
+                Text(importMessage).font(.footnote2).foregroundStyle(Palette.inkSecondary)
             }
             if let note = coordinator.forecastError {
-                Label(note, systemImage: "cloud.slash").font(.footnote).foregroundStyle(Palette.inkTertiary)
+                Label(note, systemImage: "cloud.slash").font(.footnote2).foregroundStyle(Palette.inkTertiary)
             }
             Spacer().frame(height: 24)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Metrics.gutter)
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             importing = true
             Task {

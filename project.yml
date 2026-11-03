@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: nz.malin
   deploymentTarget:
     iOS: "26.0"
+    watchOS: "26.0"
   xcodeVersion: "27.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
@@ -26,26 +27,87 @@ targets:
       - path: Cadence
         excludes:
           - "Cadence.entitlements"
+          - "Info.plist"
+      - path: Shared
     dependencies:
       - package: TrainingEngine
+      - target: CadenceWidgets
+      - target: CadenceWatch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Cadence/Info.plist
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Cadence uses your location to fetch the week's forecast so runs land on the best days."
-        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs, yoga classes and strength workouts from Apple Health, including duration, distance, effort and heart rate, so they count toward your training load and set your run pace and heart-rate zones."
-        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Cadence saves each strength session you finish to Apple Health as a workout with its active energy, so it shows in Fitness and counts toward your rings."
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your runs, yoga classes and strength workouts from Apple Health, including duration, distance, effort, heart rate and active energy, so they count toward your training load and set your run pace and heart-rate zones. Heart-rate variability, resting heart rate and sleep tell it how recovered you are, so a day you are run down gets lighter lifts."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Cadence saves each strength session you finish to Apple Health as a workout with the effort you rate, so it shows in Fitness and counts toward your rings. Without Cadence on your watch, it adds an estimate of the active energy."
         CODE_SIGN_ENTITLEMENTS: Cadence/Cadence.entitlements
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
         INFOPLIST_KEY_CFBundleDisplayName: Cadence
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_EMIT_LOC_STRINGS: YES
+  CadenceWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: CadenceWidgets
+      - path: Shared
+      - path: Cadence/Design/Palette.swift
+      - path: Cadence/Design/Typography.swift
+      - path: Cadence/Resources/Fonts/Sora.ttf
+    dependencies:
+      - package: TrainingEngine
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness.widgets
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: CadenceWidgets/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Cadence
+        SWIFT_EMIT_LOC_STRINGS: YES
+  CadenceWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: CadenceWatch
+        excludes:
+          - "CadenceWatch.entitlements"
+          - "Info.plist"
+      - path: Shared/LiveWorkout.swift
+      - path: Cadence/Resources/AppIcon.icon
+      - path: Cadence/Design/Formatters.swift
+      - path: Cadence/Design/Palette.swift
+      - path: Cadence/Design/Typography.swift
+      - path: Cadence/Resources/Fonts/Sora.ttf
+    dependencies:
+      - package: TrainingEngine
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness.watchkitapp
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: 1
+        TARGETED_DEVICE_FAMILY: "4"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: CadenceWatch/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Cadence
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_WKCompanionAppBundleIdentifier: nz.malin.cadence.fitness
+        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
+        INFOPLIST_KEY_NSHealthShareUsageDescription: "Cadence reads your heart rate and the energy you burn while you lift, so the session shows live and lands in Apple Health with both."
+        INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Cadence saves each strength session it records on your watch to Apple Health as a workout with its heart rate and active energy."
+        CODE_SIGN_ENTITLEMENTS: CadenceWatch/CadenceWatch.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_EMIT_LOC_STRINGS: YES
 schemes:
   Cadence:
