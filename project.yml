@@ -86,7 +86,9 @@ targets:
           - "Info.plist"
       - path: Shared/LiveWorkout.swift
       - path: Cadence/Resources/AppIcon.icon
+      - path: Cadence/Design/Charts.swift
       - path: Cadence/Design/Formatters.swift
+      - path: Cadence/Design/Motion.swift
       - path: Cadence/Design/Palette.swift
       - path: Cadence/Design/Typography.swift
       - path: Cadence/Resources/Fonts/Sora.ttf

@@ -26,6 +26,12 @@ final class WorkoutManager: NSObject {
     private(set) var saved = false
     private(set) var duration: TimeInterval = 0
     private(set) var message: String?
+    /// Heart rate through the workout, a reading every few seconds, and when the athlete rested,
+    /// for the summary's chart.
+    private(set) var heartRates: [HeartRateReading] = []
+    private(set) var rests: [DateInterval] = []
+    private(set) var startDate: Date?
+    private(set) var endDate: Date?
 
     private let store = HKHealthStore()
     private var session: HKWorkoutSession?
@@ -70,10 +76,14 @@ final class WorkoutManager: NSObject {
             metrics = LiveMetrics()
             next = nil
             setRest(nil)
+            heartRates = []
+            rests = []
             saveOnEnd = true
             // The phone shows it live and logs the sets; without it the watch still records.
             try? await session.startMirroringToCompanionDevice()
             let start = Date.now
+            startDate = start
+            endDate = nil
             session.startActivity(with: start)
             try await builder.beginCollection(at: start)
         } catch {
@@ -117,6 +127,7 @@ final class WorkoutManager: NSObject {
         guard let builder else { return }
         setRest(nil)
         duration = builder.elapsedTime(at: date)
+        endDate = date
         do {
             try await builder.endCollection(at: date)
             if saveOnEnd {
@@ -153,6 +164,10 @@ final class WorkoutManager: NSObject {
 
     /// Shows the rest and taps the wrist when it runs out.
     private func setRest(_ display: RestDisplay?) {
+        if let previous = rest, previous.timer.startedAt != display?.timer.startedAt {
+            let end = max(previous.timer.startedAt, min(.now, previous.timer.endsAt))
+            rests.append(DateInterval(start: previous.timer.startedAt, end: end))
+        }
         rest = display
         alarm?.cancel()
         guard let display, !display.timer.isOver() else { return }
@@ -191,13 +206,46 @@ final class WorkoutManager: NSObject {
         guard arguments.contains("-demoWorkout") else { return }
         await start()
         receive(.session(id: UUID(), title: "Upper body, chest focus"))
-        let set = LiveSet(movement: "Barbell Bench Press", setLabel: "Set 2 of 4", target: "60 kg × 8")
+        let set = LiveSet(movement: "Barbell Bench Press", setLabel: "Set 2 of 4", target: "60 kg × 8", number: 2, count: 4, weightKg: 60, reps: 8)
         receive(.next(set))
         let seconds: Double? = arguments.contains("-demoRest") ? 150 : arguments.contains("-demoRestOver") ? 0 : nil
         if let seconds {
             let timer = RestTimer(startedAt: .now.addingTimeInterval(seconds > 0 ? -40 : -170), seconds: 150)
-            receive(.rest(RestDisplay(timer: timer, movement: set.movement, setLabel: set.setLabel, target: set.target)))
+            receive(.rest(RestDisplay(timer: timer, before: set)))
         }
+    }
+
+    /// `-demoSummary` shows the summary of a made-up 52 minute session: heart rate climbing through
+    /// each set and settling through each rest. Records nothing.
+    func showDemoSummary() {
+        let end = Date.now
+        let start = end.addingTimeInterval(-52 * 60)
+        var readings: [HeartRateReading] = []
+        var spans: [DateInterval] = []
+        var time = start.addingTimeInterval(4 * 60)
+        readings.append(HeartRateReading(date: start, beatsPerMinute: 82))
+        while time < end.addingTimeInterval(-90) {
+            let work = Double.random(in: 35...55)
+            let rest = Double.random(in: 110...170)
+            let peak = Double.random(in: 128...152)
+            for step in stride(from: 0.0, through: work, by: 5) {
+                readings.append(HeartRateReading(date: time.addingTimeInterval(step), beatsPerMinute: 96 + (peak - 96) * step / work))
+            }
+            spans.append(DateInterval(start: time.addingTimeInterval(work), duration: rest))
+            for step in stride(from: 5.0, through: rest, by: 5) {
+                readings.append(HeartRateReading(date: time.addingTimeInterval(work + step), beatsPerMinute: 94 + (peak - 94) * exp(-step / 40)))
+            }
+            time = time.addingTimeInterval(work + rest)
+        }
+        heartRates = readings
+        rests = spans
+        startDate = start
+        endDate = end
+        duration = end.timeIntervalSince(start)
+        title = "Upper body, chest focus"
+        metrics = LiveMetrics(heartRate: 101, averageHeartRate: 118, activeKilocalories: 286)
+        saved = true
+        phase = .ended
     }
     #endif
 
@@ -206,7 +254,10 @@ final class WorkoutManager: NSObject {
         Task { try? await session.sendToRemoteWorkoutSession(data: data) }
     }
 
-    private func update(_ metrics: LiveMetrics) {
+    private func update(_ metrics: LiveMetrics, at date: Date) {
+        if let heartRate = metrics.heartRate, heartRates.last?.date != date {
+            heartRates.append(HeartRateReading(date: date, beatsPerMinute: heartRate))
+        }
         self.metrics = metrics
         send(.metrics(metrics))
     }
@@ -245,13 +296,20 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
         guard collectedTypes.contains(Self.heartRateType) || collectedTypes.contains(Self.activeEnergyType) else { return }
         let heartRate = workoutBuilder.statistics(for: Self.heartRateType)
         let energy = workoutBuilder.statistics(for: Self.activeEnergyType)
+        let date = heartRate?.mostRecentQuantityDateInterval()?.end ?? .now
         let metrics = LiveMetrics(
             heartRate: heartRate?.mostRecentQuantity()?.doubleValue(for: Self.beatsPerMinute),
             averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: Self.beatsPerMinute),
             activeKilocalories: energy?.sumQuantity()?.doubleValue(for: .kilocalorie())
         )
-        Task { @MainActor in update(metrics) }
+        Task { @MainActor in update(metrics, at: date) }
     }
 
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+}
+
+/// One heart rate reading, for the summary's chart.
+struct HeartRateReading: Hashable, Sendable {
+    let date: Date
+    let beatsPerMinute: Double
 }

@@ -9,6 +9,12 @@ struct LiveSet: Codable, Hashable, Sendable {
     var setLabel: String
     /// "60 kg × 8".
     var target: String
+    /// The same in parts, so the watch can set the load and reps out on their own. Optional so a
+    /// message from a phone or watch a version behind still reads, with the labels above to fall back on.
+    var number: Int? = nil
+    var count: Int? = nil
+    var weightKg: Double? = nil
+    var reps: Int? = nil
 }
 
 /// The rest before a set: the countdown and the set it leads to. The rest Live Activity's state,
@@ -18,8 +24,25 @@ struct RestDisplay: Codable, Hashable, Sendable {
     var movement: String
     var setLabel: String
     var target: String
+    var number: Int? = nil
+    var count: Int? = nil
+    var weightKg: Double? = nil
+    var reps: Int? = nil
 
-    var set: LiveSet { LiveSet(movement: movement, setLabel: setLabel, target: target) }
+    init(timer: RestTimer, before set: LiveSet) {
+        self.timer = timer
+        movement = set.movement
+        setLabel = set.setLabel
+        target = set.target
+        number = set.number
+        count = set.count
+        weightKg = set.weightKg
+        reps = set.reps
+    }
+
+    var set: LiveSet {
+        LiveSet(movement: movement, setLabel: setLabel, target: target, number: number, count: count, weightKg: weightKg, reps: reps)
+    }
 }
 
 /// How much one tap of plus or minus changes the rest, everywhere it can be changed.
