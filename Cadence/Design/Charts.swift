@@ -2,11 +2,13 @@ import SwiftUI
 
 /// The dial: a flat dark disc, a ring of fine ticks, and an accent arc with the icon's mint dot
 /// at its head, in a gap the arc leaves for it. Full, the ring is the icon: an open ring with the
-/// dot in its gap. Whatever sits in the middle is the screen's one big number.
+/// dot in its gap. Whatever sits in the middle is the screen's one big number. Without the dial
+/// (the watch, where the screen is small enough already) it is the track and the arc alone.
 struct ProgressRing<Center: View>: View {
     let progress: Double
     var tint: Color = Palette.accent
     var lineWidth: CGFloat = 14
+    var showsDial = true
     @ViewBuilder var center: Center
 
     var body: some View {
@@ -15,12 +17,16 @@ struct ProgressRing<Center: View>: View {
             let clamped = max(0, min(1, progress))
             let gap = dotGap(side: side)
             ZStack {
+                if showsDial {
+                    Circle()
+                        .fill(Palette.surface)
+                }
                 Circle()
-                    .fill(Palette.surface)
-                Circle()
-                    .stroke(Color.white.opacity(0.07), lineWidth: lineWidth)
+                    .stroke(showsDial ? Color.white.opacity(0.07) : Palette.surface, lineWidth: lineWidth)
                     .padding(lineWidth / 2)
-                ticks(side: side)
+                if showsDial {
+                    ticks(side: side)
+                }
                 Circle()
                     .trim(from: max(0, clamped - (1 - gap)), to: max(0, clamped - gap))
                     .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))

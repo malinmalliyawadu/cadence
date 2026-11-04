@@ -35,7 +35,7 @@ final class RestTimerService {
 
     func start(seconds: Double, before exercise: PlannedExercise, set index: Int, in session: TrainingSession) {
         let set = LiveSet(exercise, set: index)
-        let state = RestActivityAttributes.ContentState(timer: RestTimer(seconds: seconds), movement: set.movement, setLabel: set.setLabel, target: set.target)
+        let state = RestActivityAttributes.ContentState(timer: RestTimer(seconds: seconds), before: set)
         self.state = state
         sessionID = session.id
         scheduleFeedback()

@@ -12,7 +12,11 @@ struct CadenceWatchApp: App {
                 .environment(WorkoutManager.shared)
                 .tint(Palette.accent)
                 #if DEBUG
-                .task { await WorkoutManager.shared.startDemo(arguments: ProcessInfo.processInfo.arguments) }
+                .task {
+                    let arguments = ProcessInfo.processInfo.arguments
+                    if arguments.contains("-demoSummary") { WorkoutManager.shared.showDemoSummary() }
+                    await WorkoutManager.shared.startDemo(arguments: arguments)
+                }
                 #endif
         }
     }

@@ -189,6 +189,14 @@ extension LiveSet {
     /// A set as the rest card, the Live Activity and the watch show it: "Set 3 of 4", "60 kg × 8".
     init(_ exercise: PlannedExercise, set index: Int) {
         let target = exercise.target(at: index)
-        self.init(movement: exercise.name, setLabel: "Set \(index + 1) of \(exercise.targetSets)", target: "\(Format.kg(target.weightKg)) kg × \(target.reps)")
+        self.init(
+            movement: exercise.name,
+            setLabel: "Set \(index + 1) of \(exercise.targetSets)",
+            target: "\(Format.kg(target.weightKg)) kg × \(target.reps)",
+            number: index + 1,
+            count: exercise.targetSets,
+            weightKg: target.weightKg,
+            reps: target.reps
+        )
     }
 }
