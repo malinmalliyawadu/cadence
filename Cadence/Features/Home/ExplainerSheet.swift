@@ -4,7 +4,7 @@ import TrainingEngine
 
 /// A Home figure that slides up an explainer when tapped.
 enum Explainer: String, Identifiable {
-    case trainingLoad, monotony, strain, recovery
+    case trainingLoad, monotony, strain, recovery, race
     var id: String { rawValue }
 
     var title: String {
@@ -13,6 +13,7 @@ enum Explainer: String, Identifiable {
         case .monotony: "Monotony"
         case .strain: "Strain"
         case .recovery: "Recovery"
+        case .race: "Race times"
         }
     }
 }
@@ -59,6 +60,7 @@ struct ExplainerSheet: View {
                 case .strain: StrainExplainer(snapshot: snapshot)
                 case .recovery:
                     if let recovery { RecoveryExplainer(recovery: recovery, lifting: lifting) }
+                case .race: RaceExplainer()
                 }
             }
             .padding(.horizontal, Metrics.gutter)
@@ -561,7 +563,7 @@ private struct SignalRow: View {
 // MARK: Pieces
 
 /// The figure's number and verdict, and a sentence on what it says today.
-private struct ExplainerHeader: View {
+struct ExplainerHeader: View {
     let value: String
     let verdict: String
     let tint: Color
@@ -585,7 +587,7 @@ private struct ExplainerHeader: View {
     }
 }
 
-private struct ChartCard<Content: View>: View {
+struct ChartCard<Content: View>: View {
     let title: String
     @ViewBuilder var content: Content
 
@@ -658,7 +660,7 @@ private struct Equation: View {
     }
 }
 
-private struct SectionTitle: View {
+struct SectionTitle: View {
     let text: String
 
     var body: some View {
@@ -666,7 +668,7 @@ private struct SectionTitle: View {
     }
 }
 
-private struct ExplainerSection: View {
+struct ExplainerSection: View {
     let title: String
     let text: String
 

@@ -255,6 +255,7 @@ final class PlanCoordinator {
                     session.exercises = content.prescriptions.enumerated().map { PlannedExercise(prescription: $1, order: $0) }
                 case .run(let kind):
                     session.runKind = kind
+                    if kind == .quality { session.qualityWorkout = qualityWorkout(weekStart: start, goal: profile.runGoal) }
                 case .yoga:
                     break
                 }
@@ -434,6 +435,7 @@ final class PlanCoordinator {
     func addRun(on day: Date, kind: RunKind, in context: ModelContext) {
         let session = insertSession(on: day, modality: .running, minutes: kind.defaultMinutes, in: context)
         session.runKind = kind
+        session.qualityWorkout = kind == .quality ? qualityWorkout(weekStart: session.weekStart, goal: profile(in: context).runGoal) : nil
         try? context.save()
     }
 
@@ -472,6 +474,7 @@ final class PlanCoordinator {
     func changeRunKind(_ session: TrainingSession, to kind: RunKind, in context: ModelContext) {
         guard session.modality == .running, session.status == .planned else { return }
         session.runKind = kind
+        session.qualityWorkout = kind == .quality ? qualityWorkout(weekStart: session.weekStart, goal: profile(in: context).runGoal) : nil
         session.plannedMinutes = kind.defaultMinutes
         try? context.save()
     }
@@ -623,13 +626,63 @@ final class PlanCoordinator {
 
     // MARK: Runs
 
-    /// Pace and heart-rate targets for a run, from the last eight weeks of runs and the athlete's
-    /// heart-rate figures. Computed per call; the history is a few dozen rows.
-    func runTarget(for kind: RunKind, asOf date: Date = .now, in context: ModelContext) -> RunTarget {
+    /// Every finished run with a distance, as pacing reads it.
+    private func runEfforts(in context: ModelContext) -> [RunEffort] {
         let running = Modality.running.rawValue
         let completed = SessionStatus.completed.rawValue
         let runs = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate { $0.modalityRaw == running && $0.statusRaw == completed }))) ?? []
-        let vdot = RunPacing.fitness(from: runs.compactMap(\.runEffort), asOf: date)
-        return RunPacing.target(for: kind, vdot: vdot, zones: profile(in: context).heartRateZones)
+        return runs.compactMap(\.runEffort)
+    }
+
+    /// Pace and heart-rate targets for a run, from the eight weeks of runs before it and the
+    /// athlete's heart-rate figures. A quality run's structure is sized to its planned minutes.
+    /// Computed per call; the history is a few dozen rows.
+    func runTarget(for session: TrainingSession, in context: ModelContext) -> RunTarget {
+        let vdot = RunPacing.fitness(from: runEfforts(in: context), asOf: session.date)
+        return RunPacing.target(for: session.runKind ?? .easy, vdot: vdot, zones: profile(in: context).heartRateZones,
+                                workout: session.qualityWorkout ?? .threshold, plannedMinutes: session.plannedMinutes)
+    }
+
+    /// The quality run a week would get at `minutes`, shaped at today's paces: what changing a run
+    /// to a quality run, or adding one, would make it.
+    func qualityPreview(weekStart: Date, minutes: Double, in context: ModelContext) -> QualityStructure {
+        let workout = qualityWorkout(weekStart: weekStart, goal: profile(in: context).runGoal)
+        let vdot = RunPacing.fitness(from: runEfforts(in: context))
+        return RunPacing.target(for: .quality, vdot: vdot, zones: nil, workout: workout, plannedMinutes: minutes).structure
+            ?? QualityStructure.fitting(workout, plannedMinutes: minutes, pace: nil)
+    }
+
+    /// Predicted race times, fitness over the last half year and, with a goal, how far off it is.
+    func raceOutlook(in context: ModelContext, asOf date: Date = .now) -> RaceOutlook {
+        let profile = profile(in: context)
+        return RaceOutlook.evaluate(runs: runEfforts(in: context), goal: profile.runGoal, goalStartVDOT: profile.raceGoalStartVDOT, asOf: date)
+    }
+
+    /// The quality workout for a week: the rotation when training for a race, threshold otherwise.
+    func qualityWorkout(weekStart: Date, goal: RunGoal?) -> QualityWorkout {
+        goal == nil ? .threshold : QualityWorkout.rotation(weekStart: weekStart, calendar: calendar)
+    }
+
+    /// Sets or clears the race goal. A goal turns the quality run on, and quality runs still to come
+    /// take the workout the goal gives their week; finished ones keep what they were. Progress is
+    /// measured from fitness today, unless only the time changed.
+    func setRunGoal(_ goal: RunGoal?, in context: ModelContext) {
+        let profile = profile(in: context)
+        if goal?.distance != profile.runGoal?.distance || profile.raceGoalStartVDOT == nil {
+            profile.raceGoalStartVDOT = goal == nil ? nil : RunPacing.fitness(from: runEfforts(in: context))
+        }
+        profile.runGoal = goal
+        if goal != nil { profile.includeQualityRun = true }
+        let running = Modality.running.rawValue
+        let planned = SessionStatus.planned.rawValue
+        let quality = RunKind.quality.rawValue
+        let upcoming = (try? context.fetch(FetchDescriptor<TrainingSession>(predicate: #Predicate {
+            $0.modalityRaw == running && $0.statusRaw == planned && $0.runKindRaw == quality
+        }))) ?? []
+        let today = calendar.startOfDay(for: .now)
+        for session in upcoming where session.date >= today {
+            session.qualityWorkout = qualityWorkout(weekStart: session.weekStart, goal: goal)
+        }
+        try? context.save()
     }
 }

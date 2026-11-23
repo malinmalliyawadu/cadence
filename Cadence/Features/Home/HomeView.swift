@@ -9,6 +9,7 @@ struct HomeView: View {
     @Environment(PlanCoordinator.self) private var coordinator
     @Query(sort: \TrainingSession.date) private var sessions: [TrainingSession]
     @Query(sort: \ForecastDay.date) private var forecasts: [ForecastDay]
+    @Query private var profiles: [AthleteProfile]
     @State private var showSettings = false
     @State private var now = Date.now
     @State private var window = 42
@@ -41,6 +42,11 @@ struct HomeView: View {
                 if l != r { return l < r }
                 return lhs.loggedSetCount > rhs.loggedSetCount
             }
+    }
+    /// Predicted race times from the runs logged, against the goal if there is one.
+    private var outlook: RaceOutlook {
+        RaceOutlook.evaluate(runs: sessions.compactMap(\.runEffort), goal: profiles.first?.runGoal,
+                             goalStartVDOT: profiles.first?.raceGoalStartVDOT, asOf: now)
     }
     private var upNext: TrainingSession? { ahead.first }
     private var upNextIsToday: Bool { upNext.map { calendar.isDate($0.date, inSameDayAs: now) } ?? false }
@@ -108,6 +114,7 @@ struct HomeView: View {
                         .surface()
                     }
                 }
+                running
                 trends
                 howLoadIsRead
                 if !forecasts.isEmpty { WeatherAttributionView() }
@@ -217,6 +224,21 @@ struct HomeView: View {
             .map { (calendar.startOfDay(for: $0.completedAt ?? $0.date), $0.modality, $0.load) }
     }
 
+    // MARK: Running
+
+    @ViewBuilder
+    private var running: some View {
+        let outlook = outlook
+        if outlook.vdot != nil || outlook.goal != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Running")
+                Button { explainer = .race } label: { RaceCard(outlook: outlook) }
+                    .buttonStyle(.pressable)
+                    .accessibilityHint("Explains race times")
+            }
+        }
+    }
+
     @ViewBuilder
     private var trends: some View {
         if !snapshot.series.allSatisfy({ $0.load == 0 }) {
@@ -284,7 +306,7 @@ struct UpcomingRow: View {
         case .strength:
             return "\(session.subtitle), \(session.plannedSetCount) sets"
         case .running:
-            guard let kind = session.runKind, let pace = coordinator.runTarget(for: kind, asOf: session.date, in: context).pace else { return session.subtitle }
+            guard session.runKind != nil, let pace = coordinator.runTarget(for: session, in: context).pace else { return session.subtitle }
             return "\(session.subtitle) at \(Format.pace(pace.fastest)) to \(Format.pace(pace.slowest))"
         case .yoga:
             return session.subtitle

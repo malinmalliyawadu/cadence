@@ -79,6 +79,19 @@ public struct RunTarget: Sendable, Hashable {
     public let easyPace: PaceRange?
     public let zone: Int
     public let heartRate: ClosedRange<Int>?
+    /// For a quality run: which workout, and its shape sized to the planned minutes.
+    public let workout: QualityWorkout?
+    public let structure: QualityStructure?
+
+    init(kind: RunKind, pace: PaceRange?, easyPace: PaceRange? = nil, zone: Int, heartRate: ClosedRange<Int>?, workout: QualityWorkout? = nil, structure: QualityStructure? = nil) {
+        self.kind = kind
+        self.pace = pace
+        self.easyPace = easyPace
+        self.zone = zone
+        self.heartRate = heartRate
+        self.workout = workout
+        self.structure = structure
+    }
 }
 
 /// Training paces from recent runs, using Daniels' oxygen-cost and time-to-exhaustion curves.
@@ -122,16 +135,33 @@ public enum RunPacing {
         PaceRange(fastest: pace(fraction: fractions.upperBound, of: vdot), slowest: pace(fraction: fractions.lowerBound, of: vdot)).rounded
     }
 
-    /// Easy runs sit at 65 to 74% of VDOT, long runs a touch gentler, threshold at 86 to 88%.
-    public static func target(for kind: RunKind, vdot: Double?, zones: HeartRateZones?) -> RunTarget {
+    /// Easy runs sit at 65 to 74% of VDOT, long runs a touch gentler. A quality run's hard part is
+    /// threshold at 86 to 88%, intervals at 97 to 100% (VO2max pace, Daniels' I), or speed reps at
+    /// the pace of a flat-out mile (Daniels' R). `plannedMinutes` sizes a quality run's structure.
+    public static func target(for kind: RunKind, vdot: Double?, zones: HeartRateZones?, workout: QualityWorkout = .threshold, plannedMinutes: Double? = nil) -> RunTarget {
         let easy = vdot.map { band(0.65...0.74, of: $0) }
         switch kind {
         case .easy:
-            return RunTarget(kind: kind, pace: easy, easyPace: nil, zone: 2, heartRate: zones?.range(zone: 2))
+            return RunTarget(kind: kind, pace: easy, zone: 2, heartRate: zones?.range(zone: 2))
         case .long:
-            return RunTarget(kind: kind, pace: vdot.map { band(0.62...0.72, of: $0) }, easyPace: nil, zone: 2, heartRate: zones?.range(zone: 2))
+            return RunTarget(kind: kind, pace: vdot.map { band(0.62...0.72, of: $0) }, zone: 2, heartRate: zones?.range(zone: 2))
         case .quality:
-            return RunTarget(kind: kind, pace: vdot.map { band(0.86...0.88, of: $0) }, easyPace: easy, zone: 4, heartRate: zones?.range(zone: 4))
+            let pace = vdot.map { workPace(workout, vdot: $0) }
+            let structure = plannedMinutes.map { QualityStructure.fitting(workout, plannedMinutes: $0, pace: pace) }
+            return RunTarget(kind: kind, pace: pace, easyPace: easy, zone: workout.zone, heartRate: zones?.range(zone: workout.zone),
+                             workout: workout, structure: structure)
+        }
+    }
+
+    static func workPace(_ workout: QualityWorkout, vdot: Double) -> PaceRange {
+        switch workout {
+        case .threshold: return band(0.86...0.88, of: vdot)
+        case .intervals: return band(0.97...1.0, of: vdot)
+        case .speed:
+            let mile = 1.609344
+            let pace = predictedMinutes(distanceKm: mile, vdot: vdot) * 60 / mile
+            let rounded = PaceRange(fastest: pace - 3, slowest: pace + 3).rounded
+            return rounded.fastest == rounded.slowest ? PaceRange(fastest: rounded.fastest, slowest: rounded.slowest + 5) : rounded
         }
     }
 }

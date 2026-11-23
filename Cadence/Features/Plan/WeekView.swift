@@ -120,9 +120,9 @@ struct DayCard: View {
 
     /// Runs lead with their pace; everything else keeps its subtitle.
     private func detail(_ session: TrainingSession) -> String {
-        guard session.modality == .running, let kind = session.runKind else { return session.subtitle }
+        guard session.modality == .running, session.runKind != nil else { return session.subtitle }
         if session.status == .completed, let pace = session.actualPace { return "\(session.subtitle) at \(Format.pace(pace))" }
-        guard session.status == .planned, let pace = coordinator.runTarget(for: kind, asOf: session.date, in: context).pace else { return session.subtitle }
+        guard session.status == .planned, let pace = coordinator.runTarget(for: session, in: context).pace else { return session.subtitle }
         return "\(session.subtitle) at \(Format.pace(pace.fastest)) to \(Format.pace(pace.slowest))"
     }
 

@@ -71,8 +71,11 @@ struct ChangeSessionSheet: View {
                     ForEach(RunKind.allCases, id: \.self) { kind in
                         // The current type at the minutes it is planned for; another at its own default.
                         let isCurrent = kind == session.runKind
-                        OptionRow(symbol: Modality.running.symbolName, tint: Palette.sky, title: kind.displayName,
-                                  detail: kind.changeDetail(minutes: isCurrent ? session.plannedMinutes : kind.defaultMinutes),
+                        let minutes = isCurrent ? session.plannedMinutes : kind.defaultMinutes
+                        let quality = kind != .quality ? nil : isCurrent ? coordinator.runTarget(for: session, in: context).structure
+                            : coordinator.qualityPreview(weekStart: session.weekStart, minutes: minutes, in: context)
+                        OptionRow(symbol: Modality.running.symbolName, tint: Palette.sky, title: quality?.workout.displayName ?? kind.displayName,
+                                  detail: kind.changeDetail(minutes: minutes, quality: quality),
                                   isCurrent: isCurrent) {
                             apply { coordinator.changeRunKind(session, to: kind, in: context) }
                         }
@@ -132,7 +135,9 @@ struct RestDaySheet: View {
             }
             ChangeSection(title: "Run or class") {
                 ForEach(RunKind.allCases, id: \.self) { kind in
-                    OptionRow(symbol: Modality.running.symbolName, tint: Palette.sky, title: kind.displayName, detail: kind.changeDetail(minutes: kind.defaultMinutes)) {
+                    let quality = kind == .quality ? coordinator.qualityPreview(weekStart: coordinator.weekStart(containing: date), minutes: kind.defaultMinutes, in: context) : nil
+                    OptionRow(symbol: Modality.running.symbolName, tint: Palette.sky, title: quality?.workout.displayName ?? kind.displayName,
+                              detail: kind.changeDetail(minutes: kind.defaultMinutes, quality: quality)) {
                         apply { coordinator.addRun(on: date, kind: kind, in: context) }
                     }
                 }
@@ -347,12 +352,12 @@ private struct DayOptionRow: View {
 }
 
 private extension RunKind {
-    /// What the run is, in a line, with its minutes.
-    func changeDetail(minutes: Double) -> String {
+    /// What the run is, in a line, with its minutes. A quality run names its hard part.
+    func changeDetail(minutes: Double, quality: QualityStructure?) -> String {
         switch self {
         case .easy: "\(Int(minutes)) min you could talk through"
         case .long: "\(Int(minutes)) min steady, the week's longest"
-        case .quality: "\(Int(minutes)) min with 20 at threshold"
+        case .quality: "\(Int(minutes)) min with \(quality?.hardPart ?? "a hard part in the middle")"
         }
     }
 }

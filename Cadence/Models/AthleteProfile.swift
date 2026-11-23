@@ -33,6 +33,12 @@ final class AthleteProfile {
     var unavailableDays: [Int]
     var preferredLongRunDay: Int?
 
+    // Race goal: a distance and a time to run it in. Nil until the athlete sets one.
+    var raceGoalDistanceRaw: String?
+    var raceGoalMinutes: Double?
+    /// Running fitness (VDOT) when the goal was set, so progress has somewhere to start from.
+    var raceGoalStartVDOT: Double?
+
     // Focus rotation
     var nextUpperFocusRaw: String
     var nextLowerFocusRaw: String
@@ -88,6 +94,17 @@ final class AthleteProfile {
     var equipment: Set<Equipment> {
         get { Set(equipmentRaw.compactMap(Equipment.init(rawValue:))) }
         set { equipmentRaw = newValue.map(\.rawValue).sorted() }
+    }
+
+    var runGoal: RunGoal? {
+        get {
+            guard let distance = raceGoalDistanceRaw.flatMap(RaceDistance.init(rawValue:)), let minutes = raceGoalMinutes else { return nil }
+            return RunGoal(distance: distance, minutes: minutes)
+        }
+        set {
+            raceGoalDistanceRaw = newValue?.distance.rawValue
+            raceGoalMinutes = newValue?.minutes
+        }
     }
 
     var heartRateZones: HeartRateZones? {

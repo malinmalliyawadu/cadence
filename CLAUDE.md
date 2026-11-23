@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  118 tests in under a second. Everything that decides what to train lives here, never in views.
+  133 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -27,6 +27,10 @@ and the weather, generates every strength session, and progresses load from reps
   - `Planning/WeekPlanner.swift` - weekly load budget, then exhaustive scored search over day assignments.
   - `Planning/Weather.swift` - running score from a daily forecast (weighted geometric mean).
   - `Running/RunTargets.swift` - target pace from recent runs (Daniels VDOT, best run of eight weeks) and heart-rate zones (Karvonen when resting HR is known).
+  - `Running/RacePrediction.swift` - predicted 5 km, 10 km, half and marathon times from that fitness (Daniels' curves
+    solved for time), a race goal (5 or 10 km) with its gap, progress since it was set and a projected date from the
+    twelve-week trend, and the quality-run rotation a goal brings (intervals, threshold, speed reps, one a week),
+    each sized to the run's planned minutes.
   - `Import/WorkoutExportParser.swift` + `Exercises/ExerciseAliases.swift` - CSV import and name mapping.
 - `Cadence/` - the app. SwiftUI, SwiftData, Swift Charts, HealthKit, CoreLocation, MapKit (reverse geocoding). iOS 26+.
   - `Features/History/` - the History tab: finished sessions by month (filter by modality, search by movement), and every
@@ -36,6 +40,8 @@ and the weather, generates every strength session, and progresses load from reps
     trend and sessions first and how it moves last (`ExerciseDetailSheet(historyFirst:)`).
     The maths is `Strength/ExerciseTrend.swift`; `MovementHistory` lines its points up with the sessions they came from,
     and `HistoryReader` works it out on a background context, since reading every logged set on the main one stalls taps.
+  - `Features/Running/` - Race times on Home (predictions against the goal) and its explainer, and how a quality
+    run's workout reads. The goal is set in Settings, Race goal (`Features/Settings/RaceGoalSection.swift`).
   - `Features/Home/ExplainerSheet.swift` - what tapping Training load, Recovery, Monotony or Strain on Home slides up:
     the number, a chart of the athlete's own data behind it, the sum with today's values, and what the planner does with it.
   - `Services/PlanCoordinator.swift` - bridges the store and the engine; the only place that persists plans.
