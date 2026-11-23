@@ -86,33 +86,36 @@ struct RaceExplainer: View {
 
     private func chart(_ outlook: RaceOutlook, lead: RaceDistance) -> some View {
         let points = outlook.history.map { (date: $0.date, minutes: RunPacing.predictedMinutes(distanceKm: lead.kilometres, vdot: $0.vdot)) }
+        let values = points.map(\.minutes) + (outlook.goal.map { [$0.minutes] } ?? [])
+        let ticks = Self.ticks(low: values.min() ?? 0, high: values.max() ?? 1)
+        // Faster is better, so faster is up: time is plotted negated, on a range just wider than the
+        // data and the goal, and labelled back as a time.
         return Chart {
             if let goal = outlook.goal {
-                RuleMark(y: .value("Goal", goal.minutes))
+                RuleMark(y: .value("Goal", -goal.minutes))
                     .foregroundStyle(Palette.accent)
                     .lineStyle(.init(lineWidth: 1.5, dash: [4, 4]))
-                    .annotation(position: .top, alignment: .leading) {
+                    .annotation(position: .bottom, alignment: .trailing) {
                         Text("Goal \(Format.raceTime(goal.minutes))").font(.axis).foregroundStyle(Palette.accent)
                     }
             }
             ForEach(points, id: \.date) { point in
-                LineMark(x: .value("Week", point.date), y: .value("Minutes", point.minutes))
+                LineMark(x: .value("Week", point.date), y: .value("Minutes", -point.minutes))
                     .foregroundStyle(Palette.ink)
                     .lineStyle(.init(lineWidth: 2.5))
                     .interpolationMethod(.monotone)
             }
             if let point = points.last {
-                PointMark(x: .value("Week", point.date), y: .value("Minutes", point.minutes))
+                PointMark(x: .value("Week", point.date), y: .value("Minutes", -point.minutes))
                     .foregroundStyle(Palette.today)
                     .symbolSize(90)
             }
         }
-        // Faster is better, so faster is up.
-        .chartYScale(domain: .automatic(includesZero: false, reversed: true))
+        .chartYScale(domain: -(ticks.last ?? 1)...(-(ticks.first ?? 0)))
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+            AxisMarks(position: .leading, values: ticks.map { -$0 }) { value in
                 AxisGridLine().foregroundStyle(Palette.hairline)
-                AxisValueLabel { if let minutes = value.as(Double.self) { Text(Format.raceTime(minutes)) } }
+                AxisValueLabel { if let minutes = value.as(Double.self) { Text(Format.raceTime(-minutes)) } }
                     .font(.axis).foregroundStyle(Palette.inkTertiary)
             }
         }
@@ -126,5 +129,15 @@ struct RaceExplainer: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Predicted \(lead.displayName) time each week over six months")
         .accessibilityValue(points.last.map { "Now \(Format.raceTime($0.minutes))" } ?? "")
+    }
+
+    /// Whole-minute ticks a step of 1, 2, 5, 10 or 30 minutes apart, the first at or under `low` and
+    /// the last at or over `high`, with no more than five of them.
+    static func ticks(low: Double, high: Double) -> [Double] {
+        let steps: [Double] = [1, 2, 5, 10, 30]
+        let step = steps.first { ((high / $0).rounded(.up) - (low / $0).rounded(.down)) <= 4 } ?? 60
+        let first = (low / step).rounded(.down) * step
+        let last = max(first + step, (high / step).rounded(.up) * step)
+        return Array(stride(from: first, through: last, by: step))
     }
 }
