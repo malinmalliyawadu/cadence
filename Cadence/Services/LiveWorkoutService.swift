@@ -63,6 +63,9 @@ final class LiveWorkoutService: NSObject {
         Task {
             do {
                 try await store.startWatchApp(toHandle: Self.strength)
+                // The watch is recording and will save the workout, even if mirroring never connects.
+                session.recordedLive = true
+                try? session.modelContext?.save()
             } catch {
                 unavailable.insert(id)
                 if pendingID == id { pendingID = nil }

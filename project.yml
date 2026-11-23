@@ -38,7 +38,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness
         # XcodeGen defaults iOS targets to 1,2, which would make this an iPad app too.
         TARGETED_DEVICE_FAMILY: "1"
-        MARKETING_VERSION: "1.0"
+        MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: Cadence/Info.plist
@@ -72,7 +72,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness.widgets
         TARGETED_DEVICE_FAMILY: "1"
-        MARKETING_VERSION: "1.0"
+        MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: CadenceWidgets/Info.plist
@@ -99,7 +99,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: nz.malin.cadence.fitness.watchkitapp
-        MARKETING_VERSION: "1.0"
+        MARKETING_VERSION: "1.0.1"
         CURRENT_PROJECT_VERSION: 1
         TARGETED_DEVICE_FAMILY: "4"
         GENERATE_INFOPLIST_FILE: YES

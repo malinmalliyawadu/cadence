@@ -41,4 +41,22 @@ struct StrengthWorkoutRecordTests {
         #expect(StrengthWorkoutRecord.activeKilocalories(bodyweightKg: 80, minutes: 60, rpe: 8) == 400)
         #expect(StrengthWorkoutRecord.activeKilocalories(bodyweightKg: 80, minutes: 0, rpe: 8) == 0)
     }
+
+    @Test("A session nothing recorded is saved as soon as it finishes")
+    func estimateWithoutWatch() {
+        #expect(StrengthWorkoutRecord.estimateIsDue(recordedLive: false, completedAt: start, now: start))
+    }
+
+    @Test("A session the watch recorded waits for the watch's workout, however slow it is to arrive")
+    func estimateWaitsForWatch() {
+        #expect(!StrengthWorkoutRecord.estimateIsDue(recordedLive: true, completedAt: start, now: start))
+        #expect(!StrengthWorkoutRecord.estimateIsDue(recordedLive: true, completedAt: start, now: minutes(2)))
+        #expect(!StrengthWorkoutRecord.estimateIsDue(recordedLive: true, completedAt: start, now: minutes(179)))
+    }
+
+    @Test("A watch workout that never arrives falls back to the estimate")
+    func estimateWhenWatchWorkoutOverdue() {
+        #expect(StrengthWorkoutRecord.estimateIsDue(recordedLive: true, completedAt: start, now: minutes(180)))
+        #expect(StrengthWorkoutRecord.estimateIsDue(recordedLive: true, completedAt: start, now: minutes(60 * 24)))
+    }
 }
