@@ -18,6 +18,21 @@ enum Format {
     /// "85 kg × 6", or "Bodyweight × 10" with nothing added.
     static func set(_ set: PerformedSet) -> String { "\(weight(set.weightKg)) × \(set.reps)" }
 
+    /// A movement's sets with each weight said once: "62.5 kg × 8, 8, 7", or
+    /// "60 kg × 8, 8  ·  55 kg × 10" when the weight changed along the way.
+    static func sets(_ sets: [PerformedSet]) -> String {
+        var groups: [(weightKg: Double, reps: [Int])] = []
+        for set in sets {
+            if groups.last?.weightKg == set.weightKg { groups[groups.count - 1].reps.append(set.reps) } else { groups.append((set.weightKg, [set.reps])) }
+        }
+        // A wrapped line breaks between groups or reps, never inside "117 kg × 8".
+        return groups.map { group in
+            let load = "\(weight(group.weightKg)) × \(group.reps[0])".replacingOccurrences(of: " ", with: "\u{00A0}")
+            return ([load] + group.reps.dropFirst().map(String.init)).joined(separator: ", ")
+        }
+        .joined(separator: "  ·  ")
+    }
+
     /// A trend metric's value: "104.5 kg", "85 kg", "2,400 kg".
     static func value(_ value: Double, metric: TrendMetric) -> String {
         switch metric {

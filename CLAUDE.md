@@ -32,7 +32,8 @@ and the weather, generates every strength session, and progresses load from reps
   - `Features/History/` - the History tab: finished sessions by month (filter by modality, search by movement), and every
     movement lifted with its estimated max and three-month change. A movement opens onto its trend (estimated max, heaviest
     set or volume over a window, drag to read a session), its bests, next time's load and every session it was logged in,
-    under how it moves.
+    under how it moves. In a session, History on a movement's Sets header opens the same screen as a sheet with the
+    trend and sessions first and how it moves last (`ExerciseDetailSheet(historyFirst:)`).
     The maths is `Strength/ExerciseTrend.swift`; `MovementHistory` lines its points up with the sessions they came from,
     and `HistoryReader` works it out on a background context, since reading every logged set on the main one stalls taps.
   - `Features/Home/ExplainerSheet.swift` - what tapping Training load, Recovery, Monotony or Strain on Home slides up:

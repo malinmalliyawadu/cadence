@@ -280,6 +280,7 @@ struct ExerciseCard: View {
     @State private var editing: Int?
     @State private var showSwap = false
     @State private var showMovement = false
+    @State private var showHistory = false
 
     private var selected: Int? { editing ?? exercise.nextSetIndex }
     private var selectedIsNext: Bool { selected != nil && selected == exercise.nextSetIndex }
@@ -323,6 +324,9 @@ struct ExerciseCard: View {
         .sheet(isPresented: $showSwap) { SwapMovementSheet(exercise: exercise) }
         .sheet(isPresented: $showMovement) {
             if let movement = exercise.exercise { ExerciseDetailSheet(exercise: movement) }
+        }
+        .sheet(isPresented: $showHistory) {
+            if let movement = exercise.exercise { ExerciseDetailSheet(exercise: movement, historyFirst: true) }
         }
     }
 
@@ -426,6 +430,12 @@ struct ExerciseCard: View {
         HStack {
             Text("Sets").font(.rowTitle).foregroundStyle(Palette.ink)
             Spacer()
+            // The movement's trend and every session it was logged in, for the sets to beat.
+            if exercise.exercise != nil {
+                Button { showHistory = true } label: { MenuChipLabel(text: "History", symbol: "chevron.right") }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Shows every session of \(exercise.name) and its trend")
+            }
             if isEditable, exercise.completedSets.isEmpty, let role = exercise.exercise?.role {
                 Menu {
                     Section("Switch scheme for today") {

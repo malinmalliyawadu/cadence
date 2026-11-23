@@ -6,11 +6,13 @@ import TrainingEngine
 /// The movement screen on its own, for checking a movement from inside a session.
 struct ExerciseDetailSheet: View {
     let exercise: Exercise
+    /// The trend and sessions before how it moves, when opened from History in a session.
+    var historyFirst = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ExerciseDetailView(exercise: exercise, opensSessions: false)
+            ExerciseDetailView(exercise: exercise, opensSessions: false, historyFirst: historyFirst)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
@@ -20,11 +22,14 @@ struct ExerciseDetailSheet: View {
 }
 
 /// One movement's story: how it moves, then its trend (estimated max, heaviest set or volume over
-/// time), the bests, what comes next, and every session it was logged in.
+/// time), the bests, what comes next, and every session it was logged in. Opened for its history,
+/// how it moves comes last.
 struct ExerciseDetailView: View {
     let exercise: Exercise
     /// Whether a logged session opens. Off in the sheet over a session, which has nowhere to push it.
     var opensSessions = true
+    /// Whether the trend and sessions come before how it moves: opened from a session's History.
+    var historyFirst = false
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<TrainingSession> { $0.statusRaw == "completed" }, sort: \TrainingSession.date)
     private var sessions: [TrainingSession]
@@ -36,7 +41,6 @@ struct ExerciseDetailView: View {
 
     var body: some View {
         let movement = history?.movements.first
-        let points = movement?.points ?? []
         ZStack {
             ScreenBackground()
             ScrollView {
@@ -49,25 +53,12 @@ struct ExerciseDetailView: View {
                     }
                     .padding(.top, 8)
 
-                    Card { MovementVisual(exercise: exercise) }
-
-                    if points.count >= 2 { ExerciseTrendCard(exercise: exercise, points: points) }
-                    if !points.isEmpty { BestsCard(records: ExerciseTrend.records(of: points)) }
-                    if history != nil { nextTime(history: movement?.entries ?? []) }
-
-                    if let movement {
-                        VStack(alignment: .leading, spacing: 10) {
-                            SectionHeader(title: "Sessions")
-                            LazyVStack(spacing: 8) {
-                                let byID = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                                // By position: a movement done twice in a session gives two points on one date.
-                                ForEach(movement.points.indices.reversed(), id: \.self) { index in
-                                    sessionRow(movement.points[index], sets: movement.entries[index].workingSets, session: byID[movement.sessionIDs[index]])
-                                }
-                            }
-                        }
-                    } else if history != nil {
-                        Text("No sessions logged on this movement yet.").font(.body2).foregroundStyle(Palette.inkTertiary)
+                    if historyFirst {
+                        historySections(movement: movement)
+                        Card { MovementVisual(exercise: exercise) }
+                    } else {
+                        Card { MovementVisual(exercise: exercise) }
+                        historySections(movement: movement)
                     }
                 }
                 .padding(.horizontal, Metrics.gutter)
@@ -78,6 +69,30 @@ struct ExerciseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: MovementHistory.Inputs(sessions: sessions.map(\.id), bodyweightKg: bodyweight)) {
             history = await HistoryReader.history(in: context, bodyweightKg: bodyweight, exerciseID: exercise.id)
+        }
+    }
+
+    /// The trend, the bests, what comes next and every session, as far as there are sessions to show.
+    @ViewBuilder
+    private func historySections(movement: MovementHistory.Movement?) -> some View {
+        let points = movement?.points ?? []
+        if points.count >= 2 { ExerciseTrendCard(exercise: exercise, points: points) }
+        if !points.isEmpty { BestsCard(records: ExerciseTrend.records(of: points)) }
+        if history != nil { nextTime(history: movement?.entries ?? []) }
+
+        if let movement {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeader(title: "Sessions")
+                LazyVStack(spacing: 8) {
+                    let byID = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                    // By position: a movement done twice in a session gives two points on one date.
+                    ForEach(movement.points.indices.reversed(), id: \.self) { index in
+                        sessionRow(movement.points[index], sets: movement.entries[index].workingSets, session: byID[movement.sessionIDs[index]])
+                    }
+                }
+            }
+        } else if history != nil {
+            Text("No sessions logged on this movement yet.").font(.body2).foregroundStyle(Palette.inkTertiary)
         }
     }
 
@@ -102,7 +117,7 @@ struct ExerciseDetailView: View {
         let row = HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(Format.monthDay.string(from: point.date)).font(.label).foregroundStyle(Palette.inkSecondary)
                 .frame(width: 52, alignment: .leading)
-            Text(sets.map { "\(Format.kg($0.weightKg))×\($0.reps)" }.joined(separator: "  "))
+            Text(Format.sets(sets))
                 .font(.cadence(size: 15, weight: .medium).monospacedDigit())
                 .foregroundStyle(Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
