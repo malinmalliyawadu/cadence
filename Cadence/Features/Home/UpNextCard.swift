@@ -98,7 +98,7 @@ struct UpNextCard: View {
         case .strength:
             movements
         case .running:
-            if let kind = session.runKind { runTarget(coordinator.runTarget(for: kind, asOf: session.date, in: context)) }
+            if session.runKind != nil { runTarget(coordinator.runTarget(for: session, in: context)) }
         case .yoga:
             if let forecast { weather(forecast) }
         }

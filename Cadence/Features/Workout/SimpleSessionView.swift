@@ -28,8 +28,8 @@ struct SimpleSessionView: View {
                     }
                     .padding(.top, 8)
 
-                    if session.modality == .running, let kind = session.runKind {
-                        targetCard(coordinator.runTarget(for: kind, asOf: session.date, in: context))
+                    if session.modality == .running, session.runKind != nil {
+                        targetCard(coordinator.runTarget(for: session, in: context))
                     }
 
                     dial
@@ -158,7 +158,7 @@ struct SimpleSessionView: View {
         return Card {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(done ? "Average pace" : target.kind == .quality ? "Threshold pace, 20 minute block" : "Target pace")
+                    Text(done ? "Average pace" : target.structure?.blockLabel ?? "Target pace")
                         .font(.label).foregroundStyle(Palette.inkSecondary)
                     if done, let pace = session.actualPace {
                         paceLine(Format.pace(pace))
@@ -167,6 +167,10 @@ struct SimpleSessionView: View {
                         }
                     } else if let pace = target.pace {
                         paceLine("\(Format.pace(pace.fastest)) to \(Format.pace(pace.slowest))")
+                        if let km = target.structure?.repeatKm, km < 1 {
+                            Text("Each \(Int(km * 1000)) m in \(Format.pace(pace.fastest * km)) to \(Format.pace(pace.slowest * km))")
+                                .font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary)
+                        }
                         if let easy = target.easyPace {
                             Text("Warm up and cool down at \(Format.pace(easy))").font(.body2.monospacedDigit()).foregroundStyle(Palette.inkSecondary)
                         }
@@ -235,7 +239,12 @@ struct SimpleSessionView: View {
             switch session.runKind {
             case .easy: "\(Int(session.plannedMinutes)) minutes you could hold a conversation through. Effort 3 to 4."
             case .long: "\(Int(session.plannedMinutes)) minutes, steady. Start slower than feels right; finish strong."
-            case .quality: "\(Int(session.plannedMinutes)) minutes with the hard part in the middle: 10 easy, 20 at threshold, 10 easy."
+            case .quality:
+                if let structure = coordinator.runTarget(for: session, in: context).structure {
+                    "\(Int(session.plannedMinutes)) minutes: \(structure.summary). \(structure.workout.purpose)"
+                } else {
+                    "\(Int(session.plannedMinutes)) minutes with the hard part in the middle."
+                }
             case nil: "\(Int(session.plannedMinutes)) minutes."
             }
         case .yoga:

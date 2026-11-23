@@ -43,6 +43,9 @@ final class TrainingSession {
     // Running
     var runKindRaw: String?
     var distanceKm: Double?
+    /// For a quality run, the workout it was planned as. Set when the run is planned and while it is
+    /// still to come, so a finished run keeps the workout it was.
+    var qualityWorkoutRaw: String?
 
     /// Seconds per kilometre for a finished run.
     var actualPace: Double? {
@@ -88,6 +91,11 @@ final class TrainingSession {
         set { runKindRaw = newValue?.rawValue }
     }
 
+    var qualityWorkout: QualityWorkout? {
+        get { qualityWorkoutRaw.flatMap(QualityWorkout.init(rawValue:)) }
+        set { qualityWorkoutRaw = newValue?.rawValue }
+    }
+
     var orderedExercises: [PlannedExercise] { exercises.sorted { $0.order < $1.order } }
 
     var title: String {
@@ -96,6 +104,7 @@ final class TrainingSession {
             if let half { return "\(half.displayName) body" }
             return "Strength"
         case .running:
+            if runKind == .quality, let qualityWorkout { return qualityWorkout.displayName }
             return runKind?.displayName ?? "Run"
         case .yoga:
             return "Hot yoga"

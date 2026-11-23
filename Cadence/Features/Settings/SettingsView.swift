@@ -56,6 +56,8 @@ struct SettingsView: View {
                     Text("Week").formHeader()
                 }
 
+                RaceGoalSection(profile: profile)
+
                 Section {
                     HStack(spacing: 6) {
                         ForEach(0..<7, id: \.self) { index in
@@ -330,7 +332,7 @@ struct SettingsView: View {
 
 /// A form's section headers and footers as the system draws them, in Sora: an explicit font
 /// replaces the system's header and footer styles, so each one names its own.
-private extension View {
+extension View {
     func formHeader() -> some View { font(.cadence(size: 16, weight: .semibold)) }
     func formFooter() -> some View { font(.footnote2) }
 }

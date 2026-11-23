@@ -46,6 +46,13 @@ enum Format {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
+    /// A race time: "24:56", or "1:52:03" past the hour.
+    static func raceTime(_ minutes: Double) -> String {
+        let total = Int((minutes * 60).rounded())
+        let hours = total / 3600, mins = total % 3600 / 60, secs = total % 60
+        return hours > 0 ? String(format: "%d:%02d:%02d", hours, mins, secs) : String(format: "%d:%02d", mins, secs)
+    }
+
     /// "2:30" for a rest with 150 seconds left. Rounds up, so the clock reads 0:00 only at the end.
     static func countdown(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded(.up))
