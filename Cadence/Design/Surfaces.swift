@@ -177,13 +177,15 @@ extension SectionHeader where Trailing == EmptyView {
 struct MenuChipLabel: View {
     let text: String
     var glass = true
+    /// Down for a menu; right for a chip that opens a sheet.
+    var symbol = "chevron.down"
 
     var body: some View {
         HStack(spacing: 6) {
             Text(text)
                 .font(.cadence(size: 14, weight: .medium))
                 .contentTransition(.interpolate)
-            Image(systemName: "chevron.down")
+            Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))
         }
         .foregroundStyle(Palette.ink)
