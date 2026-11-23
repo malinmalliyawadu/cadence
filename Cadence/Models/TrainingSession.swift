@@ -36,7 +36,8 @@ final class TrainingSession {
     @Relationship(deleteRule: .cascade, inverse: \PlannedExercise.session) var exercises: [PlannedExercise]
     /// The recovery multiplier today's loads are prescribed at, so a new reading re-prescribes only when it changes them.
     var recoveryFactor: Double = 1
-    /// Recorded live by the watch, which saves the workout to Health, so finishing waits for that rather than saving an estimate.
+    /// Recorded live by the watch, which saves the workout to Health, so finishing waits for that rather than saving an
+    /// estimate. Set once the watch app takes the workout, mirrored or not; the estimate is saved only once the watch's is overdue.
     var recordedLive: Bool = false
 
     // Running

@@ -7,7 +7,7 @@ and the weather, generates every strength session, and progresses load from reps
 ## Layout
 
 - `Packages/TrainingEngine` - pure Swift, Foundation only, all the maths. `swift test` runs
-  115 tests in under a second. Everything that decides what to train lives here, never in views.
+  118 tests in under a second. Everything that decides what to train lives here, never in views.
   - `Strength/Progression.swift` - RIR-driven load prescription (see below).
   - `Strength/WorkoutGenerator.swift` - six-slot session builder with focus, antagonist and balance slots, plus the
     movements the athlete always wants in an upper or lower session (Settings, In every session).
@@ -170,7 +170,9 @@ Run the parser over a real file: `CADENCE_EXPORT=~/Downloads/WorkoutExport.csv s
   A strength session with sets logged is still in progress: a watch workout links to it but does not complete it.
 - Finishing a strength session saves a workout to Health, with the rated effort related to it, unless the watch
   already recorded one that day; then the rating goes on the watch workout. A session the watch app recorded live
-  (`recordedLive`) waits up to 90 seconds for the watch's workout before falling back to the estimate. Cadence's own
+  (`recordedLive`, set once the watch app takes the workout, mirrored or not) never saves an estimate on finishing: it
+  links the watch's workout if it arrives within 90 seconds, else the next sync links it, and only once it is three hours
+  overdue (`StrengthWorkoutRecord.estimateIsDue`) does a sync save the estimate. Cadence's own
   workouts are never read back (the watch app's are, as watch workouts); a watch workout that arrives later replaces
   Cadence's copy and takes its rating, and reopening takes back the workout or the rating.
 - No em dashes anywhere in copy. Sentence case. Words say what happens ("Log set 3 of 4").

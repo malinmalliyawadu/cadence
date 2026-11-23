@@ -31,4 +31,17 @@ public enum StrengthWorkoutRecord {
     public static func activeKilocalories(bodyweightKg: Double, minutes: Double, rpe: Double) -> Double {
         (met(rpe: rpe) - 1) * max(0, bodyweightKg) * max(0, minutes) / 60
     }
+
+    /// How long a session the watch recorded waits for the watch's workout before Cadence saves
+    /// its own estimate. The watch hands its workouts to the phone's Health store when it gets
+    /// round to it, which can be minutes after the session ends, or longer when the phone is out
+    /// of reach. Saving early puts the session in Fitness twice until the watch's copy replaces it.
+    public static let watchWorkoutGrace: TimeInterval = 3 * 60 * 60
+
+    /// Whether Cadence should save its own estimate of a finished session now. A session nothing
+    /// recorded is saved as soon as it finishes; one the watch recorded is saved by the watch, so
+    /// only once its workout is overdue (it never arrived: the watch could not start or save it).
+    public static func estimateIsDue(recordedLive: Bool, completedAt: Date, now: Date) -> Bool {
+        !recordedLive || now.timeIntervalSince(completedAt) >= watchWorkoutGrace
+    }
 }
