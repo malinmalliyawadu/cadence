@@ -1,0 +1,40 @@
+name: Claude code review
+
+# Reviews every pull request into main with the official code-review plugin: parallel agents
+# look for bugs and for breaches of the CLAUDE.md files that cover the changed paths, a second
+# pass validates each finding, and only what survives is posted as inline comments.
+# The plugin reviews a pull request once; later pushes stop at its "already reviewed" check.
+# Needs the Claude GitHub app on the repo and a CLAUDE_CODE_OAUTH_TOKEN secret (claude setup-token).
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: claude-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Review with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/anthropics/claude-plugins-official.git
+          plugins: code-review@claude-plugins-official
+          prompt: /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment
